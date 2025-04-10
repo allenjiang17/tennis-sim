@@ -8,12 +8,10 @@ export default function TennisMatch() {
   const [opponentGames, setOpponentGames] = useState(0);
   const [playerSets, setPlayerSets] = useState(0);
   const [opponentSets, setOpponentSets] = useState(0);
-  const [lastWinner, setLastWinner] = useState("player");
 
   const pointDisplay = ['0', '15', '30', '40', 'Ad'];
 
   function updateScore(winner: 'player' | 'opponent') {
-    setLastWinner(winner);
 
     const isPlayer = winner === 'player';
     const currentPoints = isPlayer ? playerPoints : opponentPoints;
