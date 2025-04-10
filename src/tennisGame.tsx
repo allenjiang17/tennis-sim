@@ -59,11 +59,14 @@ function calculateStroke(impact: number | null, stroke: string, target: number, 
     const calcTarget = ((Math.random() - 0.5) * (((1 - strokeObj.accuracy) * (power**2)) + (impact ?? 0)) + target);
     const strokePower = strokeObj.power * power;
 
+    const didError = Math.random() < strokeErrorChance;
+
     return {
         target: calcTarget,
         errorChance: strokeErrorChance,
         power: strokePower,
         miss: (calcTarget < 0 || calcTarget > 1),
+        error: didError,
     }
 }
 
@@ -76,12 +79,25 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
     const [oppResult, setOppResult] = useState<string | null>(null);
     const [playerLocation, setPlayerLocation] = useState(0.5); // range 0 to 1
     const [opponentLocation, setOpponentLocation] = useState(0.5); // range 0 to 1
+    const [playerImpact, setPlayerImpact] = useState<number | null>(null);
     const [oppImpact, setOppImpact] = useState<number | null>(null);
     const [rallyCount, setRallyCount] = useState(0);
 
-    function handlePlay() {
-        let rallyCountTemp = rallyCount; 
-        let oppImpactTemp = oppImpact;
+    //ball mechanics
+    const [ballVisible, setBallVisible] = useState(true);
+    const [ballPosition, setBallPosition] = useState<{ x: number, y: 'player' | 'opponent' }>({ x: 0.5, y: 'player' });
+
+    function handlePlayerTurn() : {
+        gameOver: boolean,
+        playerImpact: number | null,
+        playerStrokeResult: {
+            target: number,
+            errorChance: number,
+            power: number,
+            miss: boolean,
+            error: boolean,
+        }
+    } {
 
         const playerStrokeResult = calculateStroke(oppImpact, stroke, targetX, power);
         const playerImpact = calculateImpact(opponentLocation, targetX, playerStrokeResult.power);
@@ -94,23 +110,51 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
             setOppImpact(null);
             onPointWinner('opponent');
             setGameState('end');
-            return;
+            return {
+                gameOver: true,
+                playerImpact,
+                playerStrokeResult
+            };
         }
 
-        const didError = Math.random() < playerStrokeResult.errorChance;
-        if (didError) {
+        if (playerStrokeResult.error) {
             setPlayerResult(`Shank! ${playerStrokeSummary}`);
             setOppResult(null);
             setOppImpact(null);
             onPointWinner('opponent');
             setGameState('end');
-            return;
+            return {
+                gameOver: true,
+                playerImpact,
+                playerStrokeResult
+            };
         }
 
-        rallyCountTemp++;
         setPlayerResult(`${playerStrokeSummary}. Impact: ${playerImpact.toFixed(2)}`);
-
+        setOppResult(null)
+        setPlayerImpact(playerImpact);
         setOpponentLocation(playerStrokeResult.target);
+        setRallyCount(rallyCount + 1);
+        return {
+            gameOver: false,
+            playerImpact,
+            playerStrokeResult
+        };
+    }
+
+    function handleOpponentTurn(playerImpact: number | null) : {
+        gameOver: boolean,
+        opponentImpact: number | null,
+        opponentStrokeResult: {
+            target: number,
+            errorChance: number,
+            power: number,
+            miss: boolean,
+            error: boolean,
+        }
+    } {
+
+        let oppImpactTemp = oppImpact;
 
         //randomly generate opponent's stroke
         const opponentStroke = strokes[Math.floor(Math.random() * strokes.length)];
@@ -128,24 +172,58 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
             setGameState('end');
             onPointWinner('player');
             setOppImpact(null);
-            return;
+            return {
+                gameOver: true,
+                opponentImpact: oppImpactTemp,
+                opponentStrokeResult
+            }
         }
 
-        const oppError = Math.random() < opponentStrokeResult.errorChance;
-        if (oppError) {
+        if (opponentStrokeResult.error) {
             setOppResult(`Opponent shanked teh ball. ${opponentStrokeSummary}`);
             setGameState('end');
             onPointWinner('player');
             setOppImpact(null);
-            return;
+            return { 
+                gameOver: true,
+                opponentImpact: oppImpactTemp,
+                opponentStrokeResult
+            }
         }
 
         setOppResult(`${opponentStrokeSummary} Impact: ${oppImpactTemp.toFixed(2)}`);
         setOppImpact(oppImpactTemp);
         setPlayerLocation(opponentStrokeResult.target);
+        setRallyCount(rallyCount + 1);
+        return {
+            gameOver: false,
+            opponentImpact: oppImpactTemp,
+            opponentStrokeResult
+        };
 
-        rallyCountTemp++;
-        setRallyCount(rallyCountTemp);
+    }
+
+    function handlePlay() {
+        const playerTurnResults = handlePlayerTurn();
+
+        if (playerTurnResults.playerStrokeResult.error) {
+            return;
+        }
+        setBallPosition({ x: playerTurnResults.playerStrokeResult.target, y: 'opponent' });
+
+        //do not play opponent turn if player mistake
+        if (playerTurnResults.gameOver) {
+            return;
+        }
+
+        setTimeout(() => {
+            const oppTurnResults = handleOpponentTurn(playerTurnResults.playerImpact);
+            if (oppTurnResults.opponentStrokeResult.error) {
+                return;
+            }
+            setBallPosition({ x: oppTurnResults.opponentStrokeResult.target, y: 'player' }); // You can store actual stroke result if needed
+
+        }, 1000);
     }
 
     function resetGame() {
@@ -159,11 +237,17 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         setOppImpact(null);
         setPlayerLocation(0.5);
         setOpponentLocation(0.5);
+        setBallPosition({ x: 0.5, y: 'player' });
     }
 
     return (
         <div style={{display: "flex", flexDirection: "row", maxWidth: "1000px"}}>
-            <TennisCourt playerLocation={playerLocation} opponentLocation={opponentLocation} />
+            <TennisCourt
+                playerLocation={playerLocation}
+                opponentLocation={opponentLocation}
+                ballVisible={ballVisible}
+                ballPosition={ballPosition}
+            />            
             <div style={{width: "60%"}}>
                 <div style={{ marginTop: '1rem' }}>
                     <strong>Rally Count:</strong> {rallyCount}
@@ -181,7 +265,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
 
 
                 {gameState === "end" ? (
-                    <button onClick={resetGame} style={{ marginTop: '1rem' }}>Next Game</button>
+                    <button onClick={resetGame} style={{ marginTop: '1rem' }}>Next Point</button>
                 ) : (
                     <StrokeControl
                         stroke={stroke}
@@ -232,49 +316,74 @@ function StrokeControl({stroke, setStroke, targetX, setTargetX, power, setPower,
     )
 }
 
-function TennisCourt({ playerLocation = 0.5, opponentLocation = 0.5 }) {
-    // Convert location (0–1) to % positioning
-    const getLeftPosition = (location) => `${location * 100}%`;
-  
+function TennisCourt({ playerLocation = 0.5, opponentLocation = 0.5, ballVisible, ballPosition }: {
+    playerLocation: number;
+    opponentLocation: number;
+    ballVisible: boolean;
+    ballPosition: { x: number, y: 'player' | 'opponent' };
+}) {
+    const getLeftPosition = (location: number) => `${(location * 46) + 27}%`;
+
+    const sharedStyle = {
+        position: 'absolute' as const,
+        fontSize: '2rem',
+        transition: 'left 0.5s ease-in-out, top 0.5s ease-in-out',
+    };
+
+    const getTopPosition = (side: 'player' | 'opponent') => side === 'player' ? '95%' : '5%';
+
     return (
-      <div style={{ position: 'relative', maxWidth: "30rem", margin: '2rem auto' }}>
-        {/* Opponent Icon */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: getLeftPosition(opponentLocation),
-            transform: 'translate(-50%, -150%)',
-            fontSize: '1.5rem',
-          }}
-        >
-          🤖
+        <div style={{ position: 'relative', maxWidth: "30rem", margin: '2rem auto' }}>
+            {/* Opponent Icon */}
+            <div
+                style={{
+                    ...sharedStyle,
+                    top: 0,
+                    left: getLeftPosition(opponentLocation),
+                    transform: 'translate(-50%, -150%)',
+                }}
+            >
+                🤖
+            </div>
+
+            {/* Tennis Court Image */}
+            <img
+                src={tennisCourt}
+                alt="Tennis Court"
+                style={{
+                    width: '100%',
+                    height: 'auto',
+                    transform: 'rotate(90deg)',
+                    filter: 'invert(1)',
+                }}
+            />
+
+            {/* Player Icon */}
+            <div
+                style={{
+                    ...sharedStyle,
+                    bottom: 0,
+                    left: getLeftPosition(playerLocation),
+                    transform: 'translate(-50%, 150%)',
+                }}
+            >
+                🧍
+            </div>
+
+            {/* Ball Icon */}
+            {ballVisible && (
+                <div
+                    style={{
+                        ...sharedStyle,
+                        top: getTopPosition(ballPosition.y),
+                        left: getLeftPosition(ballPosition.x),
+                        transform: 'translate(-50%, -50%)',
+                        transition: 'left 0.5s ease-in-out, top 0.5s ease-in-out',
+                    }}
+                >
+                    🎾
+                </div>
+            )}
         </div>
-  
-        {/* Tennis Court Image */}
-        <img
-          src={tennisCourt}
-          alt="Tennis Court"
-          style={{
-            width: '100%',
-            height: 'auto',
-            transform: 'rotate(90deg)',
-            filter: 'invert(1)',
-          }}
-        />
-  
-        {/* Player Icon */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: getLeftPosition(playerLocation),
-            transform: 'translate(-50%, 150%)',
-            fontSize: '1.5rem',
-          }}
-        >
-          🧍
-        </div>
-      </div>
     );
-  }
+}
