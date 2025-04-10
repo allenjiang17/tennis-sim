@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import TennisGame from './tennisGame'; // Assuming your component is in the same directory
 
 export default function TennisMatch() {

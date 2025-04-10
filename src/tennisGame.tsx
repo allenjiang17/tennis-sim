@@ -79,12 +79,10 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
     const [oppResult, setOppResult] = useState<string | null>(null);
     const [playerLocation, setPlayerLocation] = useState(0.5); // range 0 to 1
     const [opponentLocation, setOpponentLocation] = useState(0.5); // range 0 to 1
-    const [playerImpact, setPlayerImpact] = useState<number | null>(null);
     const [oppImpact, setOppImpact] = useState<number | null>(null);
     const [rallyCount, setRallyCount] = useState(0);
 
     //ball mechanics
-    const [ballVisible, setBallVisible] = useState(true);
     const [ballPosition, setBallPosition] = useState<{ x: number, y: 'player' | 'opponent' }>({ x: 0.5, y: 'player' });
 
     function handlePlayerTurn() : {
@@ -132,7 +130,6 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
 
         setPlayerResult(`${playerStrokeSummary}. Impact: ${playerImpact.toFixed(2)}`);
         setOppResult(null)
-        setPlayerImpact(playerImpact);
         setOpponentLocation(playerStrokeResult.target);
         setRallyCount(rallyCount + 1);
         return {
@@ -245,7 +242,6 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
             <TennisCourt
                 playerLocation={playerLocation}
                 opponentLocation={opponentLocation}
-                ballVisible={ballVisible}
                 ballPosition={ballPosition}
             />            
             <div style={{width: "60%"}}>
@@ -316,10 +312,9 @@ function StrokeControl({stroke, setStroke, targetX, setTargetX, power, setPower,
     )
 }
 
-function TennisCourt({ playerLocation = 0.5, opponentLocation = 0.5, ballVisible, ballPosition }: {
+function TennisCourt({ playerLocation = 0.5, opponentLocation = 0.5, ballPosition }: {
     playerLocation: number;
     opponentLocation: number;
-    ballVisible: boolean;
     ballPosition: { x: number, y: 'player' | 'opponent' };
 }) {
     const getLeftPosition = (location: number) => `${(location * 46) + 27}%`;
@@ -371,7 +366,6 @@ function TennisCourt({ playerLocation = 0.5, opponentLocation = 0.5, ballVisible
             </div>
 
             {/* Ball Icon */}
-            {ballVisible && (
                 <div
                     style={{
                         ...sharedStyle,
@@ -383,7 +377,6 @@ function TennisCourt({ playerLocation = 0.5, opponentLocation = 0.5, ballVisible
                 >
                     🎾
                 </div>
-            )}
         </div>
     );
 }
