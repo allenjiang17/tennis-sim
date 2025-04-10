@@ -4,6 +4,6 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/tennis-sim', // important for GitHub Pages
+  base: '/tennis-sim/', // important for GitHub Pages
 
 })
