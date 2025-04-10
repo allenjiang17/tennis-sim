@@ -55,18 +55,20 @@ export default function TennisMatch() {
   }
 
   return (
-    <div style={{ padding: '2rem' }}>
+    <div style={{ width:"100%", maxWidth: "1200px", margin: "auto", padding: '2rem' }}>
+      <div style={{ width: "100%", display: 'flex', flexDirection: 'row', alignItems: 'start', gap: '3rem' }}>
       <h1>Tennis Simulator 🎾</h1>
-      <div style={{ marginBottom: '1rem' }}>
-        <strong>Score:</strong><br />
-        Sets: Player {playerSets} - Opponent {opponentSets}<br />
-        Games: Player {playerGames} - Opponent {opponentGames}<br />
-        Points: Player {pointDisplay[playerPoints]} - Opponent {pointDisplay[opponentPoints]}
-      </div>
+      <div style={{ marginBottom: '1rem', border: '1px solid #ccc', borderRadius: '8px', padding: '1rem', width: '300px' }}>
+          <strong>Score:</strong><br />
+          Sets: Player {playerSets} - Opponent {opponentSets}<br />
+          Games: Player {playerGames} - Opponent {opponentGames}<br />
+          Points: Player {pointDisplay[playerPoints]} - Opponent {pointDisplay[opponentPoints]}
+        </div>
 
+      </div>
       <TennisGame
-        onPointWinner={(winner) => updateScore(winner)}
-      />
+          onPointWinner={(winner) => updateScore(winner)}
+        />
     </div>
   );
 }

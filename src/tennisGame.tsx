@@ -1,5 +1,6 @@
 // Basic 1-player tennis simulation game in React
-import React, { useState } from 'react';
+import { useState } from 'react';
+import tennisCourt from './assets/tennis-court.svg'
 
 const strokes = [{
     name: "Topspin",
@@ -36,10 +37,9 @@ const impact = [
     }
 ]
 
-function calculateImpact(target: number, power: number) {
-  const baseline = 0.5; // Center of the court
+function calculateImpact(playerLocation: number, target: number, power: number) {
   const impactCoeff = 0.25; // Coefficient to adjust impact
-  const dist = Math.abs(target - baseline);
+  const dist = Math.abs(target - playerLocation);
   const impact = (dist + 1)**2 * power * impactCoeff ; // +1 to ensure there's always some impact
   return impact;
 }
@@ -74,6 +74,8 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
     const [gameState, setGameState] = useState('ready');
     const [playerResult, setPlayerResult] = useState<string | null>(null);
     const [oppResult, setOppResult] = useState<string | null>(null);
+    const [playerLocation, setPlayerLocation] = useState(0.5); // range 0 to 1
+    const [opponentLocation, setOpponentLocation] = useState(0.5); // range 0 to 1
     const [oppImpact, setOppImpact] = useState<number | null>(null);
     const [rallyCount, setRallyCount] = useState(0);
 
@@ -82,7 +84,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         let oppImpactTemp = oppImpact;
 
         const playerStrokeResult = calculateStroke(oppImpact, stroke, targetX, power);
-        const playerImpact = calculateImpact(targetX, playerStrokeResult.power);
+        const playerImpact = calculateImpact(opponentLocation, targetX, playerStrokeResult.power);
 
         const playerStrokeSummary = `You hit a ${stroke} hit. The hit had ${playerStrokeResult.power.toFixed(2)} adjusted power and landed at ${playerStrokeResult.target.toFixed(2)}. The error chance was ${playerStrokeResult.errorChance.toFixed(2)}.`;
 
@@ -108,6 +110,8 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         rallyCountTemp++;
         setPlayerResult(`${playerStrokeSummary}. Impact: ${playerImpact.toFixed(2)}`);
 
+        setOpponentLocation(playerStrokeResult.target);
+
         //randomly generate opponent's stroke
         const opponentStroke = strokes[Math.floor(Math.random() * strokes.length)];
         const opponentTargetX = Math.random();
@@ -116,7 +120,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
 
         //calc opponents stroke
         const opponentStrokeResult = calculateStroke(playerImpact, opponentStroke.name, opponentTargetX, opponentPower);
-        oppImpactTemp = calculateImpact(opponentTargetX, opponentStrokeResult.power);
+        oppImpactTemp = calculateImpact(playerLocation, opponentTargetX, opponentStrokeResult.power);
         const opponentStrokeSummary = `Opponent hit a ${opponentStroke.name} hit. The hit had ${opponentStrokeResult.power.toFixed(2)} adjusted power and landed at ${opponentStrokeResult.target.toFixed(2)}. The error chance was ${opponentStrokeResult.errorChance.toFixed(2)}.`;
 
         if (opponentStrokeResult.miss) {
@@ -138,6 +142,8 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
 
         setOppResult(`${opponentStrokeSummary} Impact: ${oppImpactTemp.toFixed(2)}`);
         setOppImpact(oppImpactTemp);
+        setPlayerLocation(opponentStrokeResult.target);
+
         rallyCountTemp++;
         setRallyCount(rallyCountTemp);
     }
@@ -151,39 +157,43 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         setPower(0.5);
         setRallyCount(0);
         setOppImpact(null);
+        setPlayerLocation(0.5);
+        setOpponentLocation(0.5);
     }
 
     return (
-        <div>
-            <div style={{ marginTop: '1rem' }}>
-                <strong>Rally Count:</strong> {rallyCount}
-            </div>
-
-            {(playerResult || oppResult || oppImpact !== null) && (
-                <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '1rem', marginTop: '1rem' }}>
-                    {playerResult && <p><strong>Your hit result:</strong> {playerResult}</p>}
-                    {oppResult && <p><strong>The opponent does:</strong> {oppResult}</p>}
+        <div style={{display: "flex", flexDirection: "row", maxWidth: "1000px"}}>
+            <TennisCourt playerLocation={playerLocation} opponentLocation={opponentLocation} />
+            <div style={{width: "60%"}}>
+                <div style={{ marginTop: '1rem' }}>
+                    <strong>Rally Count:</strong> {rallyCount}
                 </div>
-            )}
+                {(playerResult || oppResult || oppImpact !== null) && (
+                    <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '1rem', marginTop: '1rem' }}>
+                        {playerResult && <p><strong>Your hit result:</strong> {playerResult}</p>}
+                        {oppResult && <p><strong>The opponent does:</strong> {oppResult}</p>}
+                    </div>
+                )}
 
-            {oppImpact && oppImpact <= 0.1 && <p>{impact[0].description} (Impact: {oppImpact.toFixed(2)})</p>}
-            {oppImpact && oppImpact <= 0.4 && oppImpact > 0.1 && <p>{impact[1].description} (Impact: {oppImpact.toFixed(2)})</p>}
-            {oppImpact && oppImpact > 0.4 && <p>{impact[2].description} (Impact: {oppImpact.toFixed(2)})</p>}
+                {oppImpact && oppImpact <= 0.1 && <p>{impact[0].description} (Impact: {oppImpact.toFixed(2)})</p>}
+                {oppImpact && oppImpact <= 0.4 && oppImpact > 0.1 && <p>{impact[1].description} (Impact: {oppImpact.toFixed(2)})</p>}
+                {oppImpact && oppImpact > 0.4 && <p>{impact[2].description} (Impact: {oppImpact.toFixed(2)})</p>}
 
 
-            {gameState === "end" ? (
-                <button onClick={resetGame} style={{ marginTop: '1rem' }}>Next Game</button>
-            ) : (
-                <StrokeControl
-                    stroke={stroke}
-                    setStroke={setStroke}
-                    targetX={targetX}
-                    setTargetX={setTargetX}
-                    power={power}
-                    setPower={setPower}
-                    handlePlay={handlePlay}
-                />
-            )}
+                {gameState === "end" ? (
+                    <button onClick={resetGame} style={{ marginTop: '1rem' }}>Next Game</button>
+                ) : (
+                    <StrokeControl
+                        stroke={stroke}
+                        setStroke={setStroke}
+                        targetX={targetX}
+                        setTargetX={setTargetX}
+                        power={power}
+                        setPower={setPower}
+                        handlePlay={handlePlay}
+                    />
+                )}
+                </div>
         </div>
     );
 }
@@ -221,3 +231,50 @@ function StrokeControl({stroke, setStroke, targetX, setTargetX, power, setPower,
         </div>
     )
 }
+
+function TennisCourt({ playerLocation = 0.5, opponentLocation = 0.5 }) {
+    // Convert location (0–1) to % positioning
+    const getLeftPosition = (location) => `${location * 100}%`;
+  
+    return (
+      <div style={{ position: 'relative', maxWidth: "30rem", margin: '2rem auto' }}>
+        {/* Opponent Icon */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: getLeftPosition(opponentLocation),
+            transform: 'translate(-50%, -150%)',
+            fontSize: '1.5rem',
+          }}
+        >
+          🤖
+        </div>
+  
+        {/* Tennis Court Image */}
+        <img
+          src={tennisCourt}
+          alt="Tennis Court"
+          style={{
+            width: '100%',
+            height: 'auto',
+            transform: 'rotate(90deg)',
+            filter: 'invert(1)',
+          }}
+        />
+  
+        {/* Player Icon */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: getLeftPosition(playerLocation),
+            transform: 'translate(-50%, 150%)',
+            fontSize: '1.5rem',
+          }}
+        >
+          🧍
+        </div>
+      </div>
+    );
+  }
