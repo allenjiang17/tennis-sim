@@ -36,7 +36,7 @@ const impact = [
     }
 ]
 
-function calculateImpact(target, power) {
+function calculateImpact(target: number, power: number) {
   const baseline = 0.5; // Center of the court
   const impactCoeff = 0.25; // Coefficient to adjust impact
   const dist = Math.abs(target - baseline);
@@ -44,15 +44,19 @@ function calculateImpact(target, power) {
   return impact;
 }
 
-function calculateStroke(impact, stroke, target, power) {
+function calculateStroke(impact: number | null, stroke: string, target: number, power: number) {
 
     const strokeObj = strokes.find((s)=>s.name === stroke);
+
+    if (!strokeObj) {
+        throw new Error(`Stroke ${stroke} not found`);
+    }
 
     console.log({impact});
     console.log(power**2);
 
-    const strokeErrorChance = ((1 - strokeObj?.consistency) * (power**2)) + impact;
-    const calcTarget = ((Math.random() - 0.5) * (((1 - strokeObj.accuracy) * (power**2)) + impact)) + target;
+    const strokeErrorChance = ((1 - strokeObj?.consistency) * (power**2)) + (impact ?? 0);
+    const calcTarget = ((Math.random() - 0.5) * (((1 - strokeObj.accuracy) * (power**2)) + (impact ?? 0)) + target);
     const strokePower = strokeObj.power * power;
 
     return {
@@ -185,7 +189,15 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
 }
 
 
-function StrokeControl({stroke, setStroke, targetX, setTargetX, power, setPower, handlePlay}) {
+function StrokeControl({stroke, setStroke, targetX, setTargetX, power, setPower, handlePlay} : {
+    stroke: string;
+    setStroke: (stroke: string) => void;
+    targetX: number;
+    setTargetX: (targetX: number) => void;
+    power: number;
+    setPower: (power: number) => void;
+    handlePlay: () => void;
+}) {
 
     return (
         <div style={{ marginTop: '1rem', padding: '1rem', border: '2px solid #ccc', borderRadius: '8px' }}>

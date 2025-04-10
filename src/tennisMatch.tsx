@@ -8,11 +8,11 @@ export default function TennisMatch() {
   const [opponentGames, setOpponentGames] = useState(0);
   const [playerSets, setPlayerSets] = useState(0);
   const [opponentSets, setOpponentSets] = useState(0);
-  const [lastWinner, setLastWinner] = useState(null);
+  const [lastWinner, setLastWinner] = useState("player");
 
   const pointDisplay = ['0', '15', '30', '40', 'Ad'];
 
-  function updateScore(winner) {
+  function updateScore(winner: 'player' | 'opponent') {
     setLastWinner(winner);
 
     const isPlayer = winner === 'player';
@@ -32,7 +32,7 @@ export default function TennisMatch() {
     }
   }
 
-  function winGame(winner) {
+  function winGame(winner: 'player' | 'opponent') {
     if (winner === 'player') {
       const newGames = playerGames + 1;
       if (newGames >= 6 && newGames - opponentGames >= 2) {
