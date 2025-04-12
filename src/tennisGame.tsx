@@ -42,7 +42,7 @@ const player = {
     fitness: 0.8,
     consistency: 0.8,
     accuracy: 0.8,
-    speed: 0.3,
+    speed: 0.1,
 }
 
 const opponent = {
@@ -176,7 +176,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         console.log({oppRunResult});
         setOpponentLocation(oppRunResult.finalLocation);
         if (!oppRunResult.reached) {
-            setOppResult("Opponent couldn't reach the ball in time!");
+            setPlayerResult("You hit a clear winner! The opponent did not reach the ball in time. " + playerStrokeSummary);
             onPointWinner('player');
             setGameState('end');
             setOppImpact(null);
@@ -233,7 +233,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         }
 
         if (opponentStrokeResult.error) {
-            setOppResult(`Opponent shanked teh ball. ${opponentStrokeSummary}`);
+            setOppResult(`Opponent shanked the ball. ${opponentStrokeSummary}`);
             setGameState('end');
             onPointWinner('player');
             setOppImpact(null);
@@ -252,7 +252,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         console.log({playerRunResult});
         setPlayerLocation(playerRunResult.finalLocation);
         if (!playerRunResult.reached) {
-            setPlayerResult("You couldn't reach the ball in time!");
+            setOppResult(`Opponent hit a clear winner! You did not reach the ball in time. ${opponentStrokeSummary}`);          
             onPointWinner('opponent');
             setGameState('end');
             return {
@@ -331,9 +331,9 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
                     </div>
                 )}
 
-                {oppImpact && oppImpact <= 0.1 && <p>{impact[0].description} (Impact: {oppImpact.toFixed(2)})</p>}
-                {oppImpact && oppImpact <= 0.4 && oppImpact > 0.1 && <p>{impact[1].description} (Impact: {oppImpact.toFixed(2)})</p>}
-                {oppImpact && oppImpact > 0.4 && <p>{impact[2].description} (Impact: {oppImpact.toFixed(2)})</p>}
+                {gameState !== "end" && oppImpact && oppImpact <= 0.1 && <p>{impact[0].description} (Impact: {oppImpact.toFixed(2)})</p>}
+                {gameState !== "end" && oppImpact && oppImpact <= 0.3 && oppImpact > 0.1 && <p>{impact[1].description} (Impact: {oppImpact.toFixed(2)})</p>}
+                {gameState !== "end" && oppImpact && oppImpact > 0.3 && <p>{impact[2].description} (Impact: {oppImpact.toFixed(2)})</p>}
 
 
                 {gameState === "end" ? (
