@@ -37,12 +37,47 @@ const impact = [
     }
 ]
 
+const player = {
+    name: "Player",
+    fitness: 0.8,
+    consistency: 0.8,
+    accuracy: 0.8,
+    speed: 0.3,
+}
+
+const opponent = {
+    name: "Opponent",
+    fitness: 0.8,
+    consistency: 0.8,
+    accuracy: 0.8,
+    speed: 0.3,
+}
+
+
 function calculateImpact(playerLocation: number, target: number, power: number) {
   const impactCoeff = 0.25; // Coefficient to adjust impact
   const dist = Math.abs(target - playerLocation);
   const impact = (dist + 1)**2 * power * impactCoeff ; // +1 to ensure there's always some impact
   return impact;
 }
+
+function calculateRun(playerLocation: number, target: number, power: number, speed: number): {
+    reached: boolean,
+    timeToBall: number,
+    timeNeeded: number,
+    finalLocation: number
+} {
+    const distance = Math.abs(playerLocation - target);
+    const timeToBall = 1 / (power + 0.1); // +0.1 to avoid division by 0
+    const timeNeeded = distance / speed;
+
+    const reached = timeNeeded <= timeToBall;
+    const ratio = Math.min(1, timeToBall / timeNeeded);
+    const finalLocation = playerLocation + (target - playerLocation) * ratio;
+
+    return { reached, timeToBall, timeNeeded, finalLocation };
+}
+
 
 function calculateStroke(impact: number | null, stroke: string, target: number, power: number) {
 
@@ -74,12 +109,17 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
     const [stroke, setStroke] = useState(strokes[0].name);
     const [targetX, setTargetX] = useState(0.5); // range 0 to 1
     const [power, setPower] = useState(0.5); // range 0 to 1
+
     const [gameState, setGameState] = useState('ready');
+
     const [playerResult, setPlayerResult] = useState<string | null>(null);
     const [oppResult, setOppResult] = useState<string | null>(null);
+
     const [playerLocation, setPlayerLocation] = useState(0.5); // range 0 to 1
     const [opponentLocation, setOpponentLocation] = useState(0.5); // range 0 to 1
+
     const [oppImpact, setOppImpact] = useState<number | null>(null);
+
     const [rallyCount, setRallyCount] = useState(0);
 
     //ball mechanics
@@ -130,8 +170,25 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
 
         setPlayerResult(`${playerStrokeSummary}. Impact: ${playerImpact.toFixed(2)}`);
         setOppResult(null)
-        setOpponentLocation(playerStrokeResult.target);
+
+        //see if opponent makes it in time
+        const oppRunResult= calculateRun(opponentLocation, playerStrokeResult.target, playerStrokeResult.power, opponent.speed);
+        console.log({oppRunResult});
+        setOpponentLocation(oppRunResult.finalLocation);
+        if (!oppRunResult.reached) {
+            setOppResult("Opponent couldn't reach the ball in time!");
+            onPointWinner('player');
+            setGameState('end');
+            setOppImpact(null);
+            return {
+                gameOver: true,
+                playerImpact,
+                playerStrokeResult
+            }
+        }
+
         setRallyCount(rallyCount + 1);
+
         return {
             gameOver: false,
             playerImpact,
@@ -157,7 +214,6 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         const opponentStroke = strokes[Math.floor(Math.random() * strokes.length)];
         const opponentTargetX = Math.random();
         const opponentPower = 0.5;
-
 
         //calc opponents stroke
         const opponentStrokeResult = calculateStroke(playerImpact, opponentStroke.name, opponentTargetX, opponentPower);
@@ -190,7 +246,22 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
 
         setOppResult(`${opponentStrokeSummary} Impact: ${oppImpactTemp.toFixed(2)}`);
         setOppImpact(oppImpactTemp);
-        setPlayerLocation(opponentStrokeResult.target);
+
+        //see if player makes it in time
+        const playerRunResult = calculateRun(playerLocation, opponentStrokeResult.target, opponentStrokeResult.power, player.speed);
+        console.log({playerRunResult});
+        setPlayerLocation(playerRunResult.finalLocation);
+        if (!playerRunResult.reached) {
+            setPlayerResult("You couldn't reach the ball in time!");
+            onPointWinner('opponent');
+            setGameState('end');
+            return {
+                gameOver: true,
+                opponentImpact: oppImpactTemp,
+                opponentStrokeResult
+            }
+        }
+
         setRallyCount(rallyCount + 1);
         return {
             gameOver: false,
@@ -203,10 +274,12 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
     function handlePlay() {
         const playerTurnResults = handlePlayerTurn();
 
-        if (playerTurnResults.playerStrokeResult.error) {
-            return;
+        if (playerTurnResults.playerStrokeResult) {
+            if (playerTurnResults.playerStrokeResult?.error) {
+                return;
+            }
+            setBallPosition({ x: playerTurnResults.playerStrokeResult?.target, y: 'opponent' });
         }
-        setBallPosition({ x: playerTurnResults.playerStrokeResult.target, y: 'opponent' });
 
         //do not play opponent turn if player mistake
         if (playerTurnResults.gameOver) {
@@ -214,11 +287,14 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         }
 
         setTimeout(() => {
-            const oppTurnResults = handleOpponentTurn(playerTurnResults.playerImpact);
-            if (oppTurnResults.opponentStrokeResult.error) {
-                return;
+            const oppTurnResults = handleOpponentTurn(playerTurnResults.playerImpact!);
+
+            if (oppTurnResults.opponentStrokeResult) {
+                if (oppTurnResults.opponentStrokeResult.error) {
+                    return;
+                }
+                setBallPosition({ x: oppTurnResults.opponentStrokeResult.target, y: 'player' });
             }
-            setBallPosition({ x: oppTurnResults.opponentStrokeResult.target, y: 'player' }); // You can store actual stroke result if needed
 
         }, 1000);
     }
