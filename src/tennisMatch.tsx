@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import TennisGame from './tennisGame'; // Assuming your component is in the same directory
+import TennisBallAnimation from './tennisSideView';
 
 export default function TennisMatch() {
   const [playerPoints, setPlayerPoints] = useState(0);
@@ -55,7 +56,7 @@ export default function TennisMatch() {
   }
 
   return (
-    <div style={{ width:"100%", maxWidth: "1200px", margin: "auto", padding: '2rem' }}>
+    <div style={{ width:"100%", margin: "auto", padding: '2rem', backgroundColor: '#83c702' }}>
       <div style={{ width: "100%", display: 'flex', flexDirection: 'row', alignItems: 'start', gap: '3rem' }}>
       <h1>Tennis Simulator 🎾</h1>
       <div style={{ marginBottom: '1rem', border: '1px solid #ccc', borderRadius: '8px', padding: '1rem', width: '300px' }}>
@@ -66,9 +67,9 @@ export default function TennisMatch() {
         </div>
 
       </div>
-      <TennisGame
+      <TennisGame 
           onPointWinner={(winner) => updateScore(winner)}
-        />
+      />
     </div>
   );
 }

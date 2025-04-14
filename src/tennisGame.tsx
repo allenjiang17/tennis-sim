@@ -1,26 +1,9 @@
 // Basic 1-player tennis simulation game in React
-import { useState } from 'react';
-import tennisCourt from './assets/tennis-court.svg'
-
-const strokes = [{
-    name: "Topspin",
-    power: 0.8,
-    consistency: 0.8,
-    accuracy: 0.8
-    },
-    {
-    name: "Flat",
-    power: 1.0,
-    consistency: 0.7,
-    accuracy: 0.95
-    },
-    {
-    name: "Slice",
-    power: 0.6,
-    consistency: 0.9,
-    accuracy: 0.9
-    }
-];
+import { useState, useRef, useEffect } from 'react';
+import TennisBallAnimation from './tennisSideView';
+import TennisCourt from './tennisCourt';
+import { calculateRun, calculateShot, calculateImpact, checkShotError, TrajectoryPoint2D, ShotResult, Position, getNetDistanceAlongShotPath, TrajectoryPoint3D } from './utils/helper';
+import { COURT_LENGTH, INITIAL_OPPONENT_LOCATION, INITIAL_PLAYER_LOCATION } from './utils/constants';
 
 const impact = [
     {
@@ -40,109 +23,83 @@ const impact = [
 const player = {
     name: "Player",
     fitness: 0.8,
-    consistency: 0.8,
+    consistency: 0.9,
     accuracy: 0.8,
-    speed: 0.1,
+    speed: 5,
 }
 
 const opponent = {
     name: "Opponent",
     fitness: 0.8,
-    consistency: 0.8,
+    consistency: 0.9,
     accuracy: 0.8,
-    speed: 0.3,
-}
-
-
-function calculateImpact(playerLocation: number, target: number, power: number) {
-  const impactCoeff = 0.25; // Coefficient to adjust impact
-  const dist = Math.abs(target - playerLocation);
-  const impact = (dist + 1)**2 * power * impactCoeff ; // +1 to ensure there's always some impact
-  return impact;
-}
-
-function calculateRun(playerLocation: number, target: number, power: number, speed: number): {
-    reached: boolean,
-    timeToBall: number,
-    timeNeeded: number,
-    finalLocation: number
-} {
-    const distance = Math.abs(playerLocation - target);
-    const timeToBall = 1 / (power + 0.1); // +0.1 to avoid division by 0
-    const timeNeeded = distance / speed;
-
-    const reached = timeNeeded <= timeToBall;
-    const ratio = Math.min(1, timeToBall / timeNeeded);
-    const finalLocation = playerLocation + (target - playerLocation) * ratio;
-
-    return { reached, timeToBall, timeNeeded, finalLocation };
-}
-
-
-function calculateStroke(impact: number | null, stroke: string, target: number, power: number) {
-
-    const strokeObj = strokes.find((s)=>s.name === stroke);
-
-    if (!strokeObj) {
-        throw new Error(`Stroke ${stroke} not found`);
-    }
-
-    console.log({impact});
-    console.log(power**2);
-
-    const strokeErrorChance = ((1 - strokeObj?.consistency) * (power**2)) + (impact ?? 0);
-    const calcTarget = ((Math.random() - 0.5) * (((1 - strokeObj.accuracy) * (power**2)) + (impact ?? 0)) + target);
-    const strokePower = strokeObj.power * power;
-
-    const didError = Math.random() < strokeErrorChance;
-
-    return {
-        target: calcTarget,
-        errorChance: strokeErrorChance,
-        power: strokePower,
-        miss: (calcTarget < 0 || calcTarget > 1),
-        error: didError,
-    }
+    speed: 5,
 }
 
 export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 'player' | 'opponent') => void }) {  
-    const [stroke, setStroke] = useState(strokes[0].name);
-    const [targetX, setTargetX] = useState(0.5); // range 0 to 1
-    const [power, setPower] = useState(0.5); // range 0 to 1
+
+    //shot parameters
+    const [power, setPower] = useState(50); // range 0mph to 100 mph
+    const [shotAngle, setAngle] = useState(0); // range -60 to 60
+    const [launchAngle, setLaunchAngle] = useState(20); // range -10 to 60
+    const [spin, setSpin] = useState(0); // range 0 to 5000 rpm
+
+    const [shotTrajectory, setShotTrajectory] = useState<TrajectoryPoint2D[]>([]);
 
     const [gameState, setGameState] = useState('ready');
 
     const [playerResult, setPlayerResult] = useState<string | null>(null);
     const [oppResult, setOppResult] = useState<string | null>(null);
 
-    const [playerLocation, setPlayerLocation] = useState(0.5); // range 0 to 1
-    const [opponentLocation, setOpponentLocation] = useState(0.5); // range 0 to 1
+    const [playerTrajectory, setPlayerTrajectory] = useState<TrajectoryPoint3D[]>([{...INITIAL_PLAYER_LOCATION, z: 0 , t: 0}]); 
+    const [opponentTrajectory, setOpponentTrajectory] = useState<TrajectoryPoint3D[]>([{...INITIAL_OPPONENT_LOCATION, z: 0, t: 0}]);
+    const playerPosition = useRef<Position>(INITIAL_PLAYER_LOCATION);
+    const opponentPosition = useRef<Position>(INITIAL_OPPONENT_LOCATION);
 
     const [oppImpact, setOppImpact] = useState<number | null>(null);
 
     const [rallyCount, setRallyCount] = useState(0);
 
     //ball mechanics
-    const [ballPosition, setBallPosition] = useState<{ x: number, y: 'player' | 'opponent' }>({ x: 0.5, y: 'player' });
+    const [ballTrajectory, setBallTrajectory] = useState<TrajectoryPoint3D[]>([{...INITIAL_PLAYER_LOCATION, z: 0 , t: 0}]);
+
+
+    useEffect(() => {
+        opponentPosition.current = getCurrentOpponentPosition();
+      }, [opponentTrajectory]);
+
+      useEffect(() => {
+        playerPosition.current = getCurrentPlayerPosition();
+      }, [playerTrajectory]);
+
+    function getCurrentPlayerPosition() {
+        return {x: playerTrajectory[playerTrajectory.length - 1].x, y: playerTrajectory[playerTrajectory.length - 1].y};
+    }
+
+    function getCurrentOpponentPosition() {
+        return {x: opponentTrajectory[opponentTrajectory.length - 1].x, y: opponentTrajectory[opponentTrajectory.length - 1].y};
+    }
 
     function handlePlayerTurn() : {
         gameOver: boolean,
         playerImpact: number | null,
-        playerStrokeResult: {
-            target: number,
-            errorChance: number,
-            power: number,
-            miss: boolean,
-            error: boolean,
-        }
+        playerShotResult: ShotResult
     } {
 
-        const playerStrokeResult = calculateStroke(oppImpact, stroke, targetX, power);
-        const playerImpact = calculateImpact(opponentLocation, targetX, playerStrokeResult.power);
+        //set self trajectory to nothing
+        setPlayerTrajectory([{x: playerPosition.current.x, y: playerPosition.current.y, z: 0, t: 0}]);
 
-        const playerStrokeSummary = `You hit a ${stroke} hit. The hit had ${playerStrokeResult.power.toFixed(2)} adjusted power and landed at ${playerStrokeResult.target.toFixed(2)}. The error chance was ${playerStrokeResult.errorChance.toFixed(2)}.`;
+        const playerShotResult = calculateShot({
+            player: player,
+            playerLocation: playerPosition.current,
+            shot: { shotAngle: shotAngle, power: power, spin: spin, launchAngle: launchAngle },
+            oppImpact: oppImpact!
+        });
+        const playerImpact = calculateImpact(opponentPosition.current, playerShotResult.strikePoint, power);
 
-        if (playerStrokeResult.miss) {
+        const playerStrokeSummary = `You hit the ball. The hit had ${power.toFixed(2)} adjusted power and landed at X-${playerShotResult.bouncePoint.x.toFixed(2)}, Y-${playerShotResult.bouncePoint.y.toFixed(2)}.`;
+
+        if (playerShotResult.miss) {
             setPlayerResult(`You missed the shot! ${playerStrokeSummary}`);
             setOppResult(null);
             setOppImpact(null);
@@ -151,11 +108,11 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
             return {
                 gameOver: true,
                 playerImpact,
-                playerStrokeResult
+                playerShotResult
             };
         }
 
-        if (playerStrokeResult.error) {
+        if (playerShotResult.error) {
             setPlayerResult(`Shank! ${playerStrokeSummary}`);
             setOppResult(null);
             setOppImpact(null);
@@ -164,7 +121,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
             return {
                 gameOver: true,
                 playerImpact,
-                playerStrokeResult
+                playerShotResult
             };
         }
 
@@ -172,9 +129,9 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         setOppResult(null)
 
         //see if opponent makes it in time
-        const oppRunResult= calculateRun(opponentLocation, playerStrokeResult.target, playerStrokeResult.power, opponent.speed);
-        console.log({oppRunResult});
-        setOpponentLocation(oppRunResult.finalLocation);
+        const oppRunResult = calculateRun(opponentPosition.current, playerShotResult.strikePoint, opponent.speed);
+        setOpponentTrajectory(oppRunResult.trajectory);
+
         if (!oppRunResult.reached) {
             setPlayerResult("You hit a clear winner! The opponent did not reach the ball in time. " + playerStrokeSummary);
             onPointWinner('player');
@@ -183,7 +140,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
             return {
                 gameOver: true,
                 playerImpact,
-                playerStrokeResult
+                playerShotResult
             }
         }
 
@@ -192,35 +149,42 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         return {
             gameOver: false,
             playerImpact,
-            playerStrokeResult
+            playerShotResult
         };
     }
 
     function handleOpponentTurn(playerImpact: number | null) : {
         gameOver: boolean,
         opponentImpact: number | null,
-        opponentStrokeResult: {
-            target: number,
-            errorChance: number,
-            power: number,
-            miss: boolean,
-            error: boolean,
+        opponentShotResult: ShotResult
         }
-    } {
+    {
 
         let oppImpactTemp = oppImpact;
+        //set self trajectory to nothing
+        setOpponentTrajectory([{x: opponentPosition.current.x, y: opponentPosition.current.y, z: 0, t: 0}]);
 
         //randomly generate opponent's stroke
-        const opponentStroke = strokes[Math.floor(Math.random() * strokes.length)];
-        const opponentTargetX = Math.random();
-        const opponentPower = 0.5;
+        const opponentPower = 50;
+        const opponentShotAngle = 0;
+        const opponentSpin = 2000; // 1000 rpm
+        const opponentLaunchAngle = 17; // 25 degrees
 
+
+        console.log({opponentPosition: opponentPosition.current})
         //calc opponents stroke
-        const opponentStrokeResult = calculateStroke(playerImpact, opponentStroke.name, opponentTargetX, opponentPower);
-        oppImpactTemp = calculateImpact(playerLocation, opponentTargetX, opponentStrokeResult.power);
-        const opponentStrokeSummary = `Opponent hit a ${opponentStroke.name} hit. The hit had ${opponentStrokeResult.power.toFixed(2)} adjusted power and landed at ${opponentStrokeResult.target.toFixed(2)}. The error chance was ${opponentStrokeResult.errorChance.toFixed(2)}.`;
+        const opponentShotResult = calculateShot({
+            player: opponent,
+            playerLocation: opponentPosition.current,
+            shot: { shotAngle: opponentShotAngle, power: opponentPower, spin: opponentSpin, launchAngle: opponentLaunchAngle },
+            oppImpact: playerImpact!
+        });
 
-        if (opponentStrokeResult.miss) {
+        oppImpactTemp = calculateImpact(playerPosition.current, opponentShotResult.strikePoint, opponentPower);
+
+        const opponentStrokeSummary = `Opponent hit the ball. The hit had ${opponentPower.toFixed(2)} power and landed at ${opponentShotResult.bouncePoint.x.toFixed(2)}, ${opponentShotResult.bouncePoint.y.toFixed(2)}.`;
+
+        if (opponentShotResult.miss) {
             setOppResult(`Opponent missed. ${opponentStrokeSummary}`);
             setGameState('end');
             onPointWinner('player');
@@ -228,11 +192,11 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
             return {
                 gameOver: true,
                 opponentImpact: oppImpactTemp,
-                opponentStrokeResult
+                opponentShotResult
             }
         }
 
-        if (opponentStrokeResult.error) {
+        if (opponentShotResult.error) {
             setOppResult(`Opponent shanked the ball. ${opponentStrokeSummary}`);
             setGameState('end');
             onPointWinner('player');
@@ -240,7 +204,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
             return { 
                 gameOver: true,
                 opponentImpact: oppImpactTemp,
-                opponentStrokeResult
+                opponentShotResult
             }
         }
 
@@ -248,9 +212,8 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         setOppImpact(oppImpactTemp);
 
         //see if player makes it in time
-        const playerRunResult = calculateRun(playerLocation, opponentStrokeResult.target, opponentStrokeResult.power, player.speed);
-        console.log({playerRunResult});
-        setPlayerLocation(playerRunResult.finalLocation);
+        const playerRunResult = calculateRun(playerPosition.current, opponentShotResult.strikePoint, player.speed);
+        setPlayerTrajectory(playerRunResult.trajectory);
         if (!playerRunResult.reached) {
             setOppResult(`Opponent hit a clear winner! You did not reach the ball in time. ${opponentStrokeSummary}`);          
             onPointWinner('opponent');
@@ -258,7 +221,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
             return {
                 gameOver: true,
                 opponentImpact: oppImpactTemp,
-                opponentStrokeResult
+                opponentShotResult
             }
         }
 
@@ -266,7 +229,7 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         return {
             gameOver: false,
             opponentImpact: oppImpactTemp,
-            opponentStrokeResult
+            opponentShotResult
         };
 
     }
@@ -274,13 +237,15 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
     function handlePlay() {
         const playerTurnResults = handlePlayerTurn();
 
-        if (playerTurnResults.playerStrokeResult) {
-            if (playerTurnResults.playerStrokeResult?.error) {
+        if (playerTurnResults.playerShotResult) {
+            if (playerTurnResults.playerShotResult?.error) {
                 return;
             }
-            setBallPosition({ x: playerTurnResults.playerStrokeResult?.target, y: 'opponent' });
+            setBallTrajectory(playerTurnResults.playerShotResult.trajectory3D);
+            setShotTrajectory(playerTurnResults.playerShotResult.trajectory2D);
         }
 
+        console.log({opponentTrajectory: opponentTrajectory})
         //do not play opponent turn if player mistake
         if (playerTurnResults.gameOver) {
             return;
@@ -289,38 +254,48 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         setTimeout(() => {
             const oppTurnResults = handleOpponentTurn(playerTurnResults.playerImpact!);
 
-            if (oppTurnResults.opponentStrokeResult) {
-                if (oppTurnResults.opponentStrokeResult.error) {
+            if (oppTurnResults.opponentShotResult) {
+                if (oppTurnResults.opponentShotResult.error) {
                     return;
                 }
-                setBallPosition({ x: oppTurnResults.opponentStrokeResult.target, y: 'player' });
+                setBallTrajectory(oppTurnResults.opponentShotResult.trajectory3D);
             }
 
-        }, 1000);
+        }, 10000);
     }
 
     function resetGame() {
         setGameState('ready');
         setPlayerResult(null);
         setOppResult(null);
-        setStroke(strokes[0].name);
-        setTargetX(0.5);
-        setPower(0.5);
+        setPower(50);
+
+        setShotTrajectory([]);
+        setAngle(0);
+        setLaunchAngle(15);
+        setSpin(0);
+
         setRallyCount(0);
         setOppImpact(null);
-        setPlayerLocation(0.5);
-        setOpponentLocation(0.5);
-        setBallPosition({ x: 0.5, y: 'player' });
+
+         setPlayerTrajectory([{...INITIAL_PLAYER_LOCATION, z: 0 , t: 0}]); 
+         setOpponentTrajectory([{...INITIAL_OPPONENT_LOCATION, z: 0 , t: 0}]); 
+         setBallTrajectory([{...INITIAL_PLAYER_LOCATION, z: 0 , t: 0}]);
     }
 
     return (
-        <div style={{display: "flex", flexDirection: "row", maxWidth: "1000px"}}>
-            <TennisCourt
-                playerLocation={playerLocation}
-                opponentLocation={opponentLocation}
-                ballPosition={ballPosition}
-            />            
-            <div style={{width: "60%"}}>
+        <div style={{display: "flex", flexDirection: "row", gap: "50px"}}>
+            <TennisCourt 
+                playerTrajectory={playerTrajectory}
+                opponentTrajectory={opponentTrajectory}
+                ballTrajectory={ballTrajectory}
+                shotAngle={shotAngle}
+            />
+            <div style={{maxWidth: "30rem"}}>
+                <TennisBallAnimation 
+                    trajectory={shotTrajectory}
+                    netX={getNetDistanceAlongShotPath(playerPosition.current, shotAngle)}
+                />    
                 <div style={{ marginTop: '1rem' }}>
                     <strong>Rally Count:</strong> {rallyCount}
                 </div>
@@ -334,18 +309,18 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
                 {gameState !== "end" && oppImpact && oppImpact <= 0.1 && <p>{impact[0].description} (Impact: {oppImpact.toFixed(2)})</p>}
                 {gameState !== "end" && oppImpact && oppImpact <= 0.3 && oppImpact > 0.1 && <p>{impact[1].description} (Impact: {oppImpact.toFixed(2)})</p>}
                 {gameState !== "end" && oppImpact && oppImpact > 0.3 && <p>{impact[2].description} (Impact: {oppImpact.toFixed(2)})</p>}
-
-
                 {gameState === "end" ? (
                     <button onClick={resetGame} style={{ marginTop: '1rem' }}>Next Point</button>
                 ) : (
                     <StrokeControl
-                        stroke={stroke}
-                        setStroke={setStroke}
-                        targetX={targetX}
-                        setTargetX={setTargetX}
                         power={power}
                         setPower={setPower}
+                        spin={spin}
+                        setSpin={setSpin}
+                        launchAngle={launchAngle}
+                        setLaunchAngle={setLaunchAngle}
+                        shotAngle={shotAngle}
+                        setAngle={setAngle}
                         handlePlay={handlePlay}
                     />
                 )}
@@ -355,104 +330,47 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
 }
 
 
-function StrokeControl({stroke, setStroke, targetX, setTargetX, power, setPower, handlePlay} : {
-    stroke: string;
-    setStroke: (stroke: string) => void;
-    targetX: number;
-    setTargetX: (targetX: number) => void;
+function StrokeControl({
+    power,
+    setPower,
+    spin,
+    setSpin,
+    launchAngle,
+    setLaunchAngle,
+    shotAngle,
+    setAngle,
+    handlePlay,
+}: {
     power: number;
-    setPower: (power: number) => void;
+    setPower: (value: number) => void;
+    spin: number;
+    setSpin: (value: number) => void;
+    launchAngle: number;
+    setLaunchAngle: (value: number) => void;
+    shotAngle: number;
+    setAngle: (value: number) => void;
     handlePlay: () => void;
-}) {
+}) {               
 
     return (
         <div style={{ marginTop: '1rem', padding: '1rem', border: '2px solid #ccc', borderRadius: '8px' }}>
             <div>
-                <label>Stroke: </label>
-                <select value={stroke} onChange={(e) => setStroke(e.target.value)}>
-                    {strokes.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-                </select>
+                <label>Power (mph): {power.toFixed(2)}</label>
+                <input type="range" min={0} max={100} step={5} value={power} onChange={(e) => setPower(parseFloat(e.target.value))} style={{ width: '100%' }} />
             </div>
-
             <div>
-                <label>Target (0 = far left, 1 = far right): {targetX.toFixed(2)}</label>
-                <input type="range" min={0} max={1} step={0.01} value={targetX} onChange={(e) => setTargetX(parseFloat(e.target.value))} style={{ width: '100%' }} />
+                <label>Launch Angle (degrees): {launchAngle.toFixed(2)}</label>
+                <input type="range" min={-10} max={60} step={1} value={launchAngle} onChange={(e) => setLaunchAngle(parseFloat(e.target.value))} style={{ width: '100%' }} />
             </div>
-
             <div>
-                <label>Power (0 = soft, 1 = max): {power.toFixed(2)}</label>
-                <input type="range" min={0} max={1} step={0.01} value={power} onChange={(e) => setPower(parseFloat(e.target.value))} style={{ width: '100%' }} />
+                <label>Spin {spin.toFixed(2)}</label>
+                <input type="range" min={-2000} max={5000} step={100} value={spin} onChange={(e) => setSpin(parseFloat(e.target.value))} style={{ width: '100%' }} />
+            </div>
+            <div>
+                <label>X-Angle (0 = far left, 1 = far right): {shotAngle.toFixed(2)}</label>
+                <input type="range" min={-60} max={60} step={1} value={shotAngle} onChange={(e) => setAngle(parseFloat(e.target.value))} style={{ width: '100%' }} />
             </div>
             <button onClick={handlePlay} style={{ marginTop: '1rem' }}>Hit Shot</button>
         </div>
     )
-}
-
-function TennisCourt({ playerLocation = 0.5, opponentLocation = 0.5, ballPosition }: {
-    playerLocation: number;
-    opponentLocation: number;
-    ballPosition: { x: number, y: 'player' | 'opponent' };
-}) {
-    const getLeftPosition = (location: number) => `${(location * 46) + 27}%`;
-
-    const sharedStyle = {
-        position: 'absolute' as const,
-        fontSize: '2rem',
-        transition: 'left 0.5s ease-in-out, top 0.5s ease-in-out',
-    };
-
-    const getTopPosition = (side: 'player' | 'opponent') => side === 'player' ? '95%' : '5%';
-
-    return (
-        <div style={{ position: 'relative', maxWidth: "30rem", margin: '2rem auto' }}>
-            {/* Opponent Icon */}
-            <div
-                style={{
-                    ...sharedStyle,
-                    top: 0,
-                    left: getLeftPosition(opponentLocation),
-                    transform: 'translate(-50%, -150%)',
-                }}
-            >
-                🤖
-            </div>
-
-            {/* Tennis Court Image */}
-            <img
-                src={tennisCourt}
-                alt="Tennis Court"
-                style={{
-                    width: '100%',
-                    height: 'auto',
-                    transform: 'rotate(90deg)',
-                    filter: 'invert(1)',
-                }}
-            />
-
-            {/* Player Icon */}
-            <div
-                style={{
-                    ...sharedStyle,
-                    bottom: 0,
-                    left: getLeftPosition(playerLocation),
-                    transform: 'translate(-50%, 150%)',
-                }}
-            >
-                🧍
-            </div>
-
-            {/* Ball Icon */}
-                <div
-                    style={{
-                        ...sharedStyle,
-                        top: getTopPosition(ballPosition.y),
-                        left: getLeftPosition(ballPosition.x),
-                        transform: 'translate(-50%, -50%)',
-                        transition: 'left 0.5s ease-in-out, top 0.5s ease-in-out',
-                    }}
-                >
-                    🎾
-                </div>
-        </div>
-    );
 }
