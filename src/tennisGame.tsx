@@ -372,7 +372,7 @@ export default function TennisPoint(
                         {oppResult && <p><strong>The opponent does:</strong> {oppResult}</p>}
                     </div>
                 )}
-                {gameState.current === "end" && gameWinner.current !== null && <button onClick={()=>{onPointWinner(gameWinner.current)}} style={{ marginTop: '1rem' }}>Next Point</button>}
+                {gameState.current === "end" && gameWinner.current !== null && <button onClick={()=>{onPointWinner(gameWinner.current!)}} style={{ marginTop: '1rem' }}>Next Point</button>}
                 {gameTurn.current === 'player' && gameState.current !== 'end' &&
                     <StrokeControl
                         power={power}
