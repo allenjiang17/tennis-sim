@@ -1,4 +1,4 @@
-import { Position, TrajectoryPoint2D, TrajectoryPoint3D, transformTrajectoryTo3D } from "./utils/helper";
+import { TrajectoryPoint2D, TrajectoryPoint3D, transformTrajectoryTo3D } from "./utils/helper";
 import { useEffect, useState } from "react";
 
 export type TennisCourtProps = {
@@ -15,8 +15,6 @@ export default function TennisCourt({
     shotAngle,
   }: TennisCourtProps) {
     // SVG coordinate system
-    const SVG_WIDTH = 200;
-    const SVG_HEIGHT = 300;
     const SVG_X_0 = 100;
     const SVG_Y_0 = 150;
 
