@@ -46,49 +46,54 @@ export default function TennisCourt({
     
     const playerLocation = playerTrajectory[frame] || playerTrajectory[playerTrajectory.length - 1];
     const opponentLocation = opponentTrajectory[frame] || opponentTrajectory[opponentTrajectory.length - 1];
-  
+
+    const showLines =
+    Math.hypot(ballPosition.x - playerLocation.x, ballPosition.y - playerLocation.y) <= 0.3;
+
     const endPoint = {d: 1000, z: 0, t: 0} as TrajectoryPoint2D;
     const zeroTargetEndLocation = transformTrajectoryTo3D(playerTrajectory[playerTrajectory.length - 1], [endPoint], 0)[0];
     const shotTargetEndLocation = transformTrajectoryTo3D(playerTrajectory[playerTrajectory.length - 1], [endPoint], shotAngle)[0];
   
     return (
-      <div style={{ position: 'relative', maxWidth: '30rem' }}>
-        <svg width="400" height="600" viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+      <div style={{ position: 'relative' }}>
+        <svg width="600" height="900" viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
             <title>Tennis Court</title>
             <g>
                 <title>Court</title>
-                <rect fill="#000000" fill-opacity="0" height="237.7" id="svg_2" stroke="#FFFFFF" stroke-width="1.5" width="82.3" x="58.19" y="31.5"/>
-                <rect fill="#000000" fill-opacity="0" height="237.7" id="svg_3" stroke="#FFFFFF" stroke-width="1.5" width="109.7" x="44" y="31.5"/>
-                <line id="svg_4" stroke="#FFFFFF"stroke-width="1.5" transform="matrix(1 0 0 1 0 0)" x1="44" x2="154" y1="150" y2="150"/>
-                <line id="svg_5" stroke="#FFFFFF" stroke-width="1.5" x1="58.44" x2="141.6" y1="86" y2="86"/>
-                <line id="svg_6" stroke="#FFFFFF" stroke-width="1.5" x1="58.54" x2="141.5" y1="214" y2="214"/>
-                <line id="svg_7" stroke="#FFFFFF" stroke-width="1.5" x1="100" x2="100" y1="86" y2="214"/>
+                <rect fill="#000000" fill-opacity="0" height="237.7" id="svg_2" stroke="#FFFFFF" stroke-width="1" width="82.3" x="58.19" y="31.5"/>
+                <rect fill="#000000" fill-opacity="0" height="237.7" id="svg_3" stroke="#FFFFFF" stroke-width="1" width="109.7" x="44" y="31.5"/>
+                <line id="svg_4" stroke="#FFFFFF"stroke-width="1" transform="matrix(1 0 0 1 0 0)" x1="44" x2="154" y1="150" y2="150"/>
+                <line id="svg_5" stroke="#FFFFFF" stroke-width="1" x1="58.44" x2="141.6" y1="86" y2="86"/>
+                <line id="svg_6" stroke="#FFFFFF" stroke-width="1" x1="58.54" x2="141.5" y1="214" y2="214"/>
+                <line id="svg_7" stroke="#FFFFFF" stroke-width="1" x1="100" x2="100" y1="86" y2="214"/>
             </g>
   
             {/* Zero-angle line (yellow) */}
-            <line
+            {showLines && <line
               x1={toSvgX(playerLocation.x)}
               y1={toSvgY(playerLocation.y)}
               x2={toSvgX(zeroTargetEndLocation.x)}
               y2={toSvgY(zeroTargetEndLocation.y)}
-              stroke="yellow"
-              strokeWidth="1"
+              stroke="pink"
+              strokeWidth="0.8"
             />
+          }
   
             {/* Shot angle line (red) */}
-             <line
+            {showLines && <line
               x1={toSvgX(playerLocation.x)}
               y1={toSvgY(playerLocation.y)}
               x2={toSvgX(shotTargetEndLocation.x)}
               y2={toSvgY(shotTargetEndLocation.y)}
               stroke="red"
-              strokeWidth="1"
+              strokeWidth="0.8"
             />
+            }
             {bouncePoint && frame >= bounceIndex && (
                 <circle
                     cx={toSvgX(bouncePoint.x)}
                     cy={toSvgY(bouncePoint.y)}
-                    r={4}
+                    r={3}
                     fill="black"
                     opacity={0.8}
                 />
@@ -98,7 +103,7 @@ export default function TennisCourt({
             <text
               x={toSvgX(ballPosition.x)}
               y={toSvgY(ballPosition.y)}
-              fontSize="12"
+              fontSize="6"
               textAnchor="middle"
               dominantBaseline="middle"
             >
@@ -109,7 +114,7 @@ export default function TennisCourt({
             <text
               x={toSvgX(playerLocation.x)}
               y={toSvgY(playerLocation.y)}
-              fontSize="16"
+              fontSize="10"
               textAnchor="middle"
               dominantBaseline="middle"
             >
@@ -120,7 +125,7 @@ export default function TennisCourt({
             <text
               x={toSvgX(opponentLocation.x)}
               y={toSvgY(opponentLocation.y)}
-              fontSize="16"
+              fontSize="10"
               textAnchor="middle"
               dominantBaseline="middle"
             >

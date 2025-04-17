@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import TennisGame from './tennisGame'; // Assuming your component is in the same directory
+import TennisPoint from './tennisGame'; // Assuming your component is in the same directory
 import TennisBallAnimation from './tennisSideView';
 
 export default function TennisMatch() {
@@ -10,13 +10,21 @@ export default function TennisMatch() {
   const [playerSets, setPlayerSets] = useState(0);
   const [opponentSets, setOpponentSets] = useState(0);
 
+  const [gameCount, setGameCount] = useState(0);     // used to track serve alternation
+  const [pointCount, setPointCount] = useState(0);   // used to alternate deuce/ad side
+  
+
   const pointDisplay = ['0', '15', '30', '40', 'Ad'];
 
-  function updateScore(winner: 'player' | 'opponent') {
+  const servePlayer = gameCount % 2 === 0 ? 'player' : 'opponent';
+  const serveSide = pointCount % 2 === 0 ? 'deuce' : 'ad';
 
+  function updateScore(winner: 'player' | 'opponent') {
     const isPlayer = winner === 'player';
     const currentPoints = isPlayer ? playerPoints : opponentPoints;
     const otherPoints = isPlayer ? opponentPoints : playerPoints;
+
+    setPointCount((prev) => prev + 1); // Alternate side after every point
 
     if (currentPoints === 3 && otherPoints < 3) {
       winGame(winner);
@@ -32,6 +40,9 @@ export default function TennisMatch() {
   }
 
   function winGame(winner: 'player' | 'opponent') {
+    setGameCount((prev) => prev + 1); // alternate serve every game
+    setPointCount(0); // reset serve side counter
+
     if (winner === 'player') {
       const newGames = playerGames + 1;
       if (newGames >= 6 && newGames - opponentGames >= 2) {
@@ -51,25 +62,28 @@ export default function TennisMatch() {
         setOpponentGames(newGames);
       }
     }
+
     setPlayerPoints(0);
     setOpponentPoints(0);
   }
 
   return (
     <div style={{ width:"100%", margin: "auto", padding: '2rem', backgroundColor: '#83c702' }}>
-      <div style={{ width: "100%", display: 'flex', flexDirection: 'row', alignItems: 'start', gap: '3rem' }}>
-      <h1>Tennis Simulator 🎾</h1>
-      <div style={{ marginBottom: '1rem', border: '1px solid #ccc', borderRadius: '8px', padding: '1rem', width: '300px' }}>
-          <strong>Score:</strong><br />
-          Sets: Player {playerSets} - Opponent {opponentSets}<br />
-          Games: Player {playerGames} - Opponent {opponentGames}<br />
-          Points: Player {pointDisplay[playerPoints]} - Opponent {pointDisplay[opponentPoints]}
-        </div>
-
-      </div>
-      <TennisGame 
-          onPointWinner={(winner) => updateScore(winner)}
+      <TennisPoint
+        key={pointCount}
+        onPointWinner={(winner) => updateScore(winner)}
+        servePlayer={servePlayer}
+        serveSide={serveSide}
       />
+      <div style={{ width: "100%", display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '3em' }}>
+        <h3 style={{margin: 0}}>tennis sim v1</h3>
+        <div style={{ display: 'flex', flexDirection: 'row', gap:'2rem'}}>
+          <div>sets: <strong>{playerSets}</strong> / {opponentSets}</div>
+          <div>games: <strong>{playerGames}</strong> / {opponentGames}</div>
+          <div>points: <strong>{pointDisplay[playerPoints]}</strong> / {pointDisplay[opponentPoints]}</div>
+        </div>
+      </div>
     </div>
+    
   );
 }

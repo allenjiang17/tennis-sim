@@ -2,8 +2,9 @@
 import { useState, useRef, useEffect } from 'react';
 import TennisBallAnimation from './tennisSideView';
 import TennisCourt from './tennisCourt';
-import { calculateRun, calculateShot, calculateImpact, checkShotError, TrajectoryPoint2D, ShotResult, Position, getNetDistanceAlongShotPath, TrajectoryPoint3D } from './utils/helper';
-import { COURT_LENGTH, INITIAL_OPPONENT_LOCATION, INITIAL_PLAYER_LOCATION } from './utils/constants';
+import { calculateRun, calculateShot, calculateImpact, checkShotError, TrajectoryPoint2D, ShotResult, Position, getNetDistanceAlongShotPath, TrajectoryPoint3D, getInitialPlayerLocation, getInitialOpponentLocation, generateOptimalShotFromPosition, isBallInServeBox } from './utils/helper';
+import { COURT_LENGTH, SERVE_HEIGHT } from './utils/constants';
+import { generateLinearEasing } from 'framer-motion';
 
 const impact = [
     {
@@ -20,7 +21,7 @@ const impact = [
     }
 ]
 
-const player = {
+const playerStats = {
     name: "Player",
     fitness: 0.8,
     consistency: 0.9,
@@ -28,40 +29,60 @@ const player = {
     speed: 5,
 }
 
-const opponent = {
+const opponentStats = {
     name: "Opponent",
     fitness: 0.8,
     consistency: 0.9,
     accuracy: 0.8,
     speed: 5,
+    ai: {
+        errorMargin: 1, //how close to the line the opponent is willing to hit
+        defaultSpin: 1500, //how much spin the opponent uses
+        defaultPower: 50, //how much power the opponent uses
+    }
 }
 
-export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 'player' | 'opponent') => void }) {  
+const opponentDelay = 3000;
+
+export default function TennisPoint(
+    { onPointWinner, serveSide, servePlayer }: 
+    { onPointWinner: (winner: 'player' | 'opponent') => void, serveSide: 'ad' | 'deuce', servePlayer: 'player' | 'opponent' }
+) {  
+
+    console.log({serveSide, servePlayer});
 
     //shot parameters
-    const [power, setPower] = useState(50); // range 0mph to 100 mph
+    const [power, setPower] = useState(85); // range 0mph to 150 mph
     const [shotAngle, setAngle] = useState(0); // range -60 to 60
-    const [launchAngle, setLaunchAngle] = useState(20); // range -10 to 60
+    const [launchAngle, setLaunchAngle] = useState(-3); // range -10 to 60
     const [spin, setSpin] = useState(0); // range 0 to 5000 rpm
 
     const [shotTrajectory, setShotTrajectory] = useState<TrajectoryPoint2D[]>([]);
 
-    const [gameState, setGameState] = useState('ready');
+    const gameState = useRef<'ready' | 'play' | 'end'>('ready');
+    const gameWinner = useRef<'player' | 'opponent' | null>(null);
+    const gameTurn = useRef<'player' | 'opponent'>(servePlayer);
 
     const [playerResult, setPlayerResult] = useState<string | null>(null);
     const [oppResult, setOppResult] = useState<string | null>(null);
 
-    const [playerTrajectory, setPlayerTrajectory] = useState<TrajectoryPoint3D[]>([{...INITIAL_PLAYER_LOCATION, z: 0 , t: 0}]); 
-    const [opponentTrajectory, setOpponentTrajectory] = useState<TrajectoryPoint3D[]>([{...INITIAL_OPPONENT_LOCATION, z: 0, t: 0}]);
-    const playerPosition = useRef<Position>(INITIAL_PLAYER_LOCATION);
-    const opponentPosition = useRef<Position>(INITIAL_OPPONENT_LOCATION);
+    const initPlayerLocation = getInitialPlayerLocation(serveSide, servePlayer);
+    const initOpponentLocation = getInitialOpponentLocation(serveSide, servePlayer);
 
-    const [oppImpact, setOppImpact] = useState<number | null>(null);
+    const [playerTrajectory, setPlayerTrajectory] = useState<TrajectoryPoint3D[]>([{...initPlayerLocation, z: 0 , t: 0}]); 
+    const [opponentTrajectory, setOpponentTrajectory] = useState<TrajectoryPoint3D[]>([{...initOpponentLocation, z: 0, t: 0}]);
 
-    const [rallyCount, setRallyCount] = useState(0);
+    const playerPosition = useRef<Position>(initPlayerLocation);
+    const opponentPosition = useRef<Position>(initOpponentLocation);
+    const ballPosition = useRef<TrajectoryPoint3D>({...initPlayerLocation, z: SERVE_HEIGHT , t: 0});
+
+    const playerShotImpact = useRef<number>(0);
+    const opponentShotImpact = useRef<number>(0);
+
+    const rallyCount = useRef(0);
 
     //ball mechanics
-    const [ballTrajectory, setBallTrajectory] = useState<TrajectoryPoint3D[]>([{...INITIAL_PLAYER_LOCATION, z: 0 , t: 0}]);
+    const [ballTrajectory, setBallTrajectory] = useState<TrajectoryPoint3D[]>([{...initPlayerLocation, z: SERVE_HEIGHT , t: 0}]);
 
 
     useEffect(() => {
@@ -72,6 +93,26 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         playerPosition.current = getCurrentPlayerPosition();
       }, [playerTrajectory]);
 
+    useEffect(() => {
+        ballPosition.current = getCurrentBallPosition();
+    }, [ballTrajectory]);
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+           event.preventDefault();
+
+          if (event.key === "ArrowRight") {
+            setAngle(prev => prev + 1);
+          } else if (event.key === "ArrowLeft") {
+            setAngle(prev => prev - 1);
+          }
+        };
+    
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+      }, []);
+    
+
     function getCurrentPlayerPosition() {
         return {x: playerTrajectory[playerTrajectory.length - 1].x, y: playerTrajectory[playerTrajectory.length - 1].y};
     }
@@ -80,238 +121,259 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
         return {x: opponentTrajectory[opponentTrajectory.length - 1].x, y: opponentTrajectory[opponentTrajectory.length - 1].y};
     }
 
-    function handlePlayerTurn() : {
-        gameOver: boolean,
-        playerImpact: number | null,
-        playerShotResult: ShotResult
+    function getCurrentBallPosition() {
+        return ballTrajectory[ballTrajectory.length - 1];
+    }
+
+    function handleTurn(player: 'player' | 'opponent') : {
+        gameState: {
+            gameOver: boolean,
+            winner: 'player' | 'opponent' | 'none',
+        },
+        shotSummary: string,
+        shotImpact: number | null,
+        shotResult: ShotResult
+        opponentReached: boolean,
     } {
 
+        gameState.current = 'play';
+
         //set self trajectory to nothing
-        setPlayerTrajectory([{x: playerPosition.current.x, y: playerPosition.current.y, z: 0, t: 0}]);
+        if (player === 'player') {
+            setPlayerTrajectory([{x: playerPosition.current.x, y: playerPosition.current.y, z: 0, t: 0}]);
+        } else {
+            setOpponentTrajectory([{x: opponentPosition.current.x, y: opponentPosition.current.y, z: 0, t: 0}]);
+        }
 
-        const playerShotResult = calculateShot({
-            player: player,
-            playerLocation: playerPosition.current,
-            shot: { shotAngle: shotAngle, power: power, spin: spin, launchAngle: launchAngle },
-            oppImpact: oppImpact!
+        if (player === 'player') {
+            //defaults
+            setPower(45);
+            setLaunchAngle(15);
+            setSpin(500);
+        }
+
+        let playerShotPower;
+        let playerShotAngle;
+        let playerShotSpin;
+        let playerShotLaunchAngle;
+
+        //get stroke data
+        if (player === 'player') {
+            playerShotPower = power;
+            playerShotAngle = shotAngle;
+            playerShotSpin = spin;
+            playerShotLaunchAngle = launchAngle;
+
+        } else {
+
+            const opponentShotParams = generateOptimalShotFromPosition({
+                playerStats: opponentStats,
+                playerLocation: opponentPosition.current,
+                opponentLocation: playerPosition.current,
+                initialHeight: ballPosition.current.z,
+                serve: rallyCount.current === 0 && servePlayer === 'opponent',
+                serveSide: serveSide
+            })
+                    //randomly generate opponent's stroke
+            playerShotPower = opponentShotParams.power
+            playerShotAngle = opponentShotParams.shotAngle;
+            playerShotSpin = opponentShotParams.spin;
+            playerShotLaunchAngle = opponentShotParams.launchAngle;
+        }
+
+        const shotResult = calculateShot({
+            player: player === 'player' ? playerStats : opponentStats,
+            playerLocation: player === 'player' ? playerPosition.current : opponentPosition.current,
+            ballHeight: ballPosition.current.z,
+            shot: { shotAngle: playerShotAngle, power: playerShotPower, spin: playerShotSpin, launchAngle: playerShotLaunchAngle },
+            oppImpact: player === 'player' ? opponentShotImpact.current : playerShotImpact.current
         });
-        const playerImpact = calculateImpact(opponentPosition.current, playerShotResult.strikePoint, power);
 
-        const playerStrokeSummary = `You hit the ball. The hit had ${power.toFixed(2)} adjusted power and landed at X-${playerShotResult.bouncePoint.x.toFixed(2)}, Y-${playerShotResult.bouncePoint.y.toFixed(2)}.`;
+        const strokeSummary = `${player === 'player' ? "You" : "The opponent"} hit had ${playerShotPower.toFixed(2)} adjusted power and landed at X-${shotResult.bouncePoint.x.toFixed(2)}, Y-${shotResult.bouncePoint.y.toFixed(2)}.`;
 
-        if (playerShotResult.miss) {
-            setPlayerResult(`You missed the shot! ${playerStrokeSummary}`);
-            setOppResult(null);
-            setOppImpact(null);
-            onPointWinner('opponent');
-            setGameState('end');
+        if (shotResult.error) {
+
+            gameWinner.current = (player === 'player') ? 'opponent' : 'player'
+            gameState.current = 'end';
+            if (player === 'player') {
+                setPlayerResult("You shanked the ball!");
+            } else {
+                setOppResult("The opponent shanked the ball!");
+            }
+
             return {
-                gameOver: true,
-                playerImpact,
-                playerShotResult
+                gameState: {
+                    gameOver: true,
+                    winner: player === 'player' ? 'opponent' : 'player',
+                },
+                shotSummary: `You shanked the ball! ${strokeSummary}`,
+                shotImpact: 0 ,
+                shotResult,
+                opponentReached: true,
             };
         }
 
-        if (playerShotResult.error) {
-            setPlayerResult(`Shank! ${playerStrokeSummary}`);
-            setOppResult(null);
-            setOppImpact(null);
-            onPointWinner('opponent');
-            setGameState('end');
+        //set ball trajectories
+        setBallTrajectory(shotResult.trajectory3D);
+        setShotTrajectory(shotResult.trajectory2D);
+
+        //calculate misses
+        if (rallyCount.current === 0) {
+
+            const serveIn = isBallInServeBox(shotResult.bouncePoint, serveSide, servePlayer);
+
+            if (!serveIn) {
+
+                gameWinner.current = (player === 'player') ? 'opponent' : 'player'
+                gameState.current = 'end';
+                if (player === 'player') {
+                    setPlayerResult("You missed your serve!");
+                } else {
+                    setOppResult("The opponent missed their!");
+                }
+
+                return {
+                    gameState: {
+                        gameOver: true,
+                        winner: player === 'player' ? 'opponent' : 'player',
+                    },
+                    shotSummary: `${player === 'player' ? "You" : "The opponent"} missed the serve!`,
+                    shotImpact: 0,
+                    shotResult,
+                    opponentReached: false,
+                };
+            }
+
+        }
+
+        if (shotResult.miss) {
+
+            gameWinner.current = (player === 'player') ? 'opponent' : 'player'
+            gameState.current = 'end';
+            if (player === 'player') {
+                setPlayerResult("You hit the ball out of bounds!");
+            } else {
+                setOppResult("The opponent hit the ball out of bounds!");
+            }
+            
             return {
-                gameOver: true,
-                playerImpact,
-                playerShotResult
+                gameState: {
+                    gameOver: true,
+                    winner: player === 'player' ? 'opponent' : 'player',
+                },
+                shotSummary: `${player === 'player' ? "You" : "The opponent"} missed the shot! ${strokeSummary}`,
+                shotImpact: 0 ,
+                shotResult,
+                opponentReached: true,
             };
         }
 
-        setPlayerResult(`${playerStrokeSummary}. Impact: ${playerImpact.toFixed(2)}`);
-        setOppResult(null)
+        //calculate shot impact
+        const shotImpact = calculateImpact(player === 'player' ? opponentPosition.current : playerPosition.current, shotResult.strikePoint, playerShotPower);
+        
+        if (player === 'player') {
+            playerShotImpact.current = shotImpact;
+        } else {
+            opponentShotImpact.current = shotImpact;
+        }
 
         //see if opponent makes it in time
-        const oppRunResult = calculateRun(opponentPosition.current, playerShotResult.strikePoint, opponent.speed);
-        setOpponentTrajectory(oppRunResult.trajectory);
+        const oppRunResult = calculateRun(player === 'player' ? opponentPosition.current : playerPosition.current, shotResult.strikePoint, player === 'player' ? opponentStats.speed : playerStats.speed);
+        if (player === 'player') {
+            setOpponentTrajectory(oppRunResult.trajectory);
+        } else {
+            setPlayerTrajectory(oppRunResult.trajectory);
+        }
 
         if (!oppRunResult.reached) {
-            setPlayerResult("You hit a clear winner! The opponent did not reach the ball in time. " + playerStrokeSummary);
-            onPointWinner('player');
-            setGameState('end');
-            setOppImpact(null);
+
+            gameWinner.current = (player === 'player')? 'player' : 'opponent'
+            gameState.current = 'end';
+            if (player === 'player') {
+                setPlayerResult("You hit a clear winner! The opponent did not reach the ball in time.");
+            } else {
+                setOppResult("The opponent hit a clear winner! You did not reach the ball in time.");
+            }
+            
             return {
-                gameOver: true,
-                playerImpact,
-                playerShotResult
+                gameState: {
+                    gameOver: true,
+                    winner: player === 'player' ? 'player' : 'opponent',
+                },
+                shotSummary: `You hit a clear winner! The opponent did not reach the ball in time. ${strokeSummary}`,
+                shotImpact,
+                shotResult,
+                opponentReached: false,
             }
         }
 
-        setRallyCount(rallyCount + 1);
+        //set result summary
+        if (player === 'player') {
+            setPlayerResult(`You hit the ball.${strokeSummary} Impact: ${shotImpact.toFixed(2)}`);
+        } else {
+            setOppResult(`The opponent hit the ball.${strokeSummary} Impact: ${shotImpact.toFixed(2)}`);
+        }
+
+        rallyCount.current = rallyCount.current + 1;
+
+        if (player === 'player') {
+            gameTurn.current = 'opponent';
+        } else {
+            gameTurn.current = 'player';
+        }
+
+        setBallTrajectory(shotResult.trajectory3D.slice(0, (shotResult.strikePoint.t*100)));
+        setShotTrajectory(shotResult.trajectory2D.slice(0, (shotResult.strikePoint.t*100)));
 
         return {
-            gameOver: false,
-            playerImpact,
-            playerShotResult
+            gameState: {
+                gameOver: false,
+                winner: 'none',
+            },
+            shotSummary: `${player === 'player' ? "You" : "The opponent"} hit the ball. ${strokeSummary} Impact: ${shotImpact.toFixed(2)}`,
+            shotImpact,
+            shotResult,
+            opponentReached: true,
         };
-    }
+    }  
+    
+    function handlePlayerTurn() {
 
-    function handleOpponentTurn(playerImpact: number | null) : {
-        gameOver: boolean,
-        opponentImpact: number | null,
-        opponentShotResult: ShotResult
-        }
-    {
-
-        let oppImpactTemp = oppImpact;
-        //set self trajectory to nothing
-        setOpponentTrajectory([{x: opponentPosition.current.x, y: opponentPosition.current.y, z: 0, t: 0}]);
-
-        //randomly generate opponent's stroke
-        const opponentPower = 50;
-        const opponentShotAngle = 0;
-        const opponentSpin = 2000; // 1000 rpm
-        const opponentLaunchAngle = 17; // 25 degrees
-
-
-        console.log({opponentPosition: opponentPosition.current})
-        //calc opponents stroke
-        const opponentShotResult = calculateShot({
-            player: opponent,
-            playerLocation: opponentPosition.current,
-            shot: { shotAngle: opponentShotAngle, power: opponentPower, spin: opponentSpin, launchAngle: opponentLaunchAngle },
-            oppImpact: playerImpact!
-        });
-
-        oppImpactTemp = calculateImpact(playerPosition.current, opponentShotResult.strikePoint, opponentPower);
-
-        const opponentStrokeSummary = `Opponent hit the ball. The hit had ${opponentPower.toFixed(2)} power and landed at ${opponentShotResult.bouncePoint.x.toFixed(2)}, ${opponentShotResult.bouncePoint.y.toFixed(2)}.`;
-
-        if (opponentShotResult.miss) {
-            setOppResult(`Opponent missed. ${opponentStrokeSummary}`);
-            setGameState('end');
-            onPointWinner('player');
-            setOppImpact(null);
-            return {
-                gameOver: true,
-                opponentImpact: oppImpactTemp,
-                opponentShotResult
-            }
-        }
-
-        if (opponentShotResult.error) {
-            setOppResult(`Opponent shanked the ball. ${opponentStrokeSummary}`);
-            setGameState('end');
-            onPointWinner('player');
-            setOppImpact(null);
-            return { 
-                gameOver: true,
-                opponentImpact: oppImpactTemp,
-                opponentShotResult
-            }
-        }
-
-        setOppResult(`${opponentStrokeSummary} Impact: ${oppImpactTemp.toFixed(2)}`);
-        setOppImpact(oppImpactTemp);
-
-        //see if player makes it in time
-        const playerRunResult = calculateRun(playerPosition.current, opponentShotResult.strikePoint, player.speed);
-        setPlayerTrajectory(playerRunResult.trajectory);
-        if (!playerRunResult.reached) {
-            setOppResult(`Opponent hit a clear winner! You did not reach the ball in time. ${opponentStrokeSummary}`);          
-            onPointWinner('opponent');
-            setGameState('end');
-            return {
-                gameOver: true,
-                opponentImpact: oppImpactTemp,
-                opponentShotResult
-            }
-        }
-
-        setRallyCount(rallyCount + 1);
-        return {
-            gameOver: false,
-            opponentImpact: oppImpactTemp,
-            opponentShotResult
-        };
-
-    }
-
-    function handlePlay() {
-        const playerTurnResults = handlePlayerTurn();
-
-        if (playerTurnResults.playerShotResult) {
-            if (playerTurnResults.playerShotResult?.error) {
-                return;
-            }
-            setBallTrajectory(playerTurnResults.playerShotResult.trajectory3D);
-            setShotTrajectory(playerTurnResults.playerShotResult.trajectory2D);
-        }
-
-        console.log({opponentTrajectory: opponentTrajectory})
-        //do not play opponent turn if player mistake
-        if (playerTurnResults.gameOver) {
-            return;
-        }
-
-        setTimeout(() => {
-            const oppTurnResults = handleOpponentTurn(playerTurnResults.playerImpact!);
-
-            if (oppTurnResults.opponentShotResult) {
-                if (oppTurnResults.opponentShotResult.error) {
-                    return;
-                }
-                setBallTrajectory(oppTurnResults.opponentShotResult.trajectory3D);
-            }
-
-        }, 10000);
-    }
-
-    function resetGame() {
-        setGameState('ready');
         setPlayerResult(null);
         setOppResult(null);
-        setPower(50);
-
-        setShotTrajectory([]);
-        setAngle(0);
-        setLaunchAngle(15);
-        setSpin(0);
-
-        setRallyCount(0);
-        setOppImpact(null);
-
-         setPlayerTrajectory([{...INITIAL_PLAYER_LOCATION, z: 0 , t: 0}]); 
-         setOpponentTrajectory([{...INITIAL_OPPONENT_LOCATION, z: 0 , t: 0}]); 
-         setBallTrajectory([{...INITIAL_PLAYER_LOCATION, z: 0 , t: 0}]);
+        
+        handleTurn("player"); 
+        if (gameState.current !== 'end'){
+            setTimeout(()=>{handleTurn("opponent")}, opponentDelay)
+        };
+        
     }
 
     return (
-        <div style={{display: "flex", flexDirection: "row", gap: "50px"}}>
+        <div style={{width: "100%", display: "flex", flexDirection: "row", gap: "50px"}}>
             <TennisCourt 
                 playerTrajectory={playerTrajectory}
                 opponentTrajectory={opponentTrajectory}
                 ballTrajectory={ballTrajectory}
                 shotAngle={shotAngle}
             />
-            <div style={{maxWidth: "30rem"}}>
+            <div style={{marginTop: "4.5rem", maxWidth: "30rem"}}>
                 <TennisBallAnimation 
                     trajectory={shotTrajectory}
                     netX={getNetDistanceAlongShotPath(playerPosition.current, shotAngle)}
                 />    
-                <div style={{ marginTop: '1rem' }}>
-                    <strong>Rally Count:</strong> {rallyCount}
+                <div style={{ display: 'none', marginTop: '1rem' }}>
+                    <strong>Rally Count:</strong> {rallyCount.current}
                 </div>
-                {(playerResult || oppResult || oppImpact !== null) && (
+                {rallyCount.current === 0 && <p>{servePlayer === "player" ? "You bounce the ball and prepare to serve. What kind of serve should you hit?" : "You get ready to return your opponent's serve"}</p>}
+                {(playerResult || oppResult) && (
                     <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '1rem', marginTop: '1rem' }}>
                         {playerResult && <p><strong>Your hit result:</strong> {playerResult}</p>}
                         {oppResult && <p><strong>The opponent does:</strong> {oppResult}</p>}
                     </div>
                 )}
-
-                {gameState !== "end" && oppImpact && oppImpact <= 0.1 && <p>{impact[0].description} (Impact: {oppImpact.toFixed(2)})</p>}
-                {gameState !== "end" && oppImpact && oppImpact <= 0.3 && oppImpact > 0.1 && <p>{impact[1].description} (Impact: {oppImpact.toFixed(2)})</p>}
-                {gameState !== "end" && oppImpact && oppImpact > 0.3 && <p>{impact[2].description} (Impact: {oppImpact.toFixed(2)})</p>}
-                {gameState === "end" ? (
-                    <button onClick={resetGame} style={{ marginTop: '1rem' }}>Next Point</button>
-                ) : (
+                {gameState.current === "end" && gameWinner.current !== null && <button onClick={()=>{onPointWinner(gameWinner.current)}} style={{ marginTop: '1rem' }}>Next Point</button>}
+                {gameTurn.current === 'player' && gameState.current !== 'end' &&
                     <StrokeControl
                         power={power}
                         setPower={setPower}
@@ -321,9 +383,11 @@ export default function TennisGame({ onPointWinner }: { onPointWinner: (winner: 
                         setLaunchAngle={setLaunchAngle}
                         shotAngle={shotAngle}
                         setAngle={setAngle}
-                        handlePlay={handlePlay}
+                        opponentShotImpact={opponentShotImpact.current}
+                        handlePlay={handlePlayerTurn}
                     />
-                )}
+                }
+                {servePlayer === 'opponent' && gameTurn.current === 'opponent' && gameState.current === 'ready' && <button onClick={()=>{handleTurn("opponent")}} style={{ marginTop: '1rem' }}>Ready to return</button>}
                 </div>
         </div>
     );
@@ -339,6 +403,7 @@ function StrokeControl({
     setLaunchAngle,
     shotAngle,
     setAngle,
+    opponentShotImpact,
     handlePlay,
 }: {
     power: number;
@@ -349,25 +414,29 @@ function StrokeControl({
     setLaunchAngle: (value: number) => void;
     shotAngle: number;
     setAngle: (value: number) => void;
+    opponentShotImpact: number;
     handlePlay: () => void;
 }) {               
 
     return (
         <div style={{ marginTop: '1rem', padding: '1rem', border: '2px solid #ccc', borderRadius: '8px' }}>
+                {opponentShotImpact <= 0.1 && opponentShotImpact > 0 && <p>{impact[0].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
+                {opponentShotImpact <= 0.3 && opponentShotImpact > 0.1 && <p>{impact[1].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
+                {opponentShotImpact > 0.3 && <p>{impact[2].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
             <div>
                 <label>Power (mph): {power.toFixed(2)}</label>
-                <input type="range" min={0} max={100} step={5} value={power} onChange={(e) => setPower(parseFloat(e.target.value))} style={{ width: '100%' }} />
+                <input type="range" min={0} max={120} step={5} value={power} onChange={(e) => setPower(parseFloat(e.target.value))} style={{ width: '100%' }} />
             </div>
             <div>
-                <label>Launch Angle (degrees): {launchAngle.toFixed(2)}</label>
+                <label>Launch angle (degrees): {launchAngle.toFixed(2)}</label>
                 <input type="range" min={-10} max={60} step={1} value={launchAngle} onChange={(e) => setLaunchAngle(parseFloat(e.target.value))} style={{ width: '100%' }} />
             </div>
             <div>
-                <label>Spin {spin.toFixed(2)}</label>
+                <label>Spin (rpm) {spin.toFixed(2)}</label>
                 <input type="range" min={-2000} max={5000} step={100} value={spin} onChange={(e) => setSpin(parseFloat(e.target.value))} style={{ width: '100%' }} />
             </div>
             <div>
-                <label>X-Angle (0 = far left, 1 = far right): {shotAngle.toFixed(2)}</label>
+                <label>Angle (degrees): {shotAngle.toFixed(2)}</label>
                 <input type="range" min={-60} max={60} step={1} value={shotAngle} onChange={(e) => setAngle(parseFloat(e.target.value))} style={{ width: '100%' }} />
             </div>
             <button onClick={handlePlay} style={{ marginTop: '1rem' }}>Hit Shot</button>

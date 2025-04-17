@@ -19,7 +19,7 @@ export default function TennisBallAnimation({trajectory, netX}: {trajectory: Tra
   }, [trajectory]);
 
   const ball = trajectory[frame] || { d: 0, z: 0 };
-  const scale = 20; // 1 meter = 20 units
+  const scale = 17; // 1 meter = 20 units
   const maxLength = 30;
   const svgWidth = maxLength * scale;
   const svgHeight = 200;
@@ -27,8 +27,8 @@ export default function TennisBallAnimation({trajectory, netX}: {trajectory: Tra
   const scaledNetX = netX * scale; 
 
   return (
-    <div style={{ textAlign: 'center' }}>
-      <h3>Tennis Ball Simulation</h3>
+    <div style={{ textAlign: 'left' }}>
+      <h4 style={{margin: '0 0 10px 0'}}>side view</h4>
       <svg
         width={svgWidth}
         height={svgHeight}
