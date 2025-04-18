@@ -25,7 +25,7 @@ const playerStats = {
     fitness: 0.8,
     consistency: 0.9,
     accuracy: 0.8,
-    speed: 5,
+    speed: 6,
 }
 
 const opponentStats = {
@@ -33,7 +33,7 @@ const opponentStats = {
     fitness: 0.8,
     consistency: 0.9,
     accuracy: 0.8,
-    speed: 5,
+    speed: 6,
     ai: {
         errorMargin: 1, //how close to the line the opponent is willing to hit
         defaultSpin: 1500, //how much spin the opponent uses
@@ -188,7 +188,7 @@ export default function TennisPoint(
             oppImpact: player === 'player' ? opponentShotImpact.current : playerShotImpact.current
         });
 
-        const strokeSummary = `${player === 'player' ? "You" : "The opponent"} hit had ${playerShotPower.toFixed(2)} adjusted power and landed at X-${shotResult.bouncePoint.x.toFixed(2)}, Y-${shotResult.bouncePoint.y.toFixed(2)}.`;
+        const strokeSummary = `The ball landed at X-${shotResult.bouncePoint.x.toFixed(2)}m, Y-${shotResult.bouncePoint.y.toFixed(2)}m.`;
 
         if (shotResult.error) {
 
@@ -349,14 +349,14 @@ export default function TennisPoint(
     }
 
     return (
-        <div style={{width: "100%", display: "flex", flexDirection: "row", gap: "50px"}}>
+        <div style={{width: "100%", display: "flex", flexDirection: "row", gap: "5rem"}}>
             <TennisCourt 
                 playerTrajectory={playerTrajectory}
                 opponentTrajectory={opponentTrajectory}
                 ballTrajectory={ballTrajectory}
                 shotAngle={shotAngle}
             />
-            <div style={{marginTop: "4.5rem", maxWidth: "30rem"}}>
+            <div style={{ maxWidth: "30rem"}}>
                 <TennisBallAnimation 
                     trajectory={shotTrajectory}
                     netX={getNetDistanceAlongShotPath(playerPosition.current, shotAngle)}
@@ -366,9 +366,9 @@ export default function TennisPoint(
                 </div>
                 {rallyCount.current === 0 && <p>{servePlayer === "player" ? "You bounce the ball and prepare to serve. What kind of serve should you hit?" : "You get ready to return your opponent's serve"}</p>}
                 {(playerResult || oppResult) && (
-                    <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '1rem', marginTop: '1rem' }}>
-                        {playerResult && <p><strong>Your hit result:</strong> {playerResult}</p>}
-                        {oppResult && <p><strong>The opponent does:</strong> {oppResult}</p>}
+                    <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '1rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {playerResult && <div><strong>Your hit result:</strong> {playerResult}</div>}
+                        {oppResult && <div><strong>The opponent:</strong> {oppResult}</div>}
                     </div>
                 )}
                 {gameState.current === "end" && gameWinner.current !== null && <button onClick={()=>{onPointWinner(gameWinner.current!)}} style={{ marginTop: '1rem' }}>Next Point</button>}
@@ -419,9 +419,9 @@ function StrokeControl({
 
     return (
         <div style={{ marginTop: '1rem', padding: '1rem', border: '2px solid #ccc', borderRadius: '8px' }}>
-                {opponentShotImpact <= 0.1 && opponentShotImpact > 0 && <p>{impact[0].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
-                {opponentShotImpact <= 0.3 && opponentShotImpact > 0.1 && <p>{impact[1].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
-                {opponentShotImpact > 0.3 && <p>{impact[2].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
+                {opponentShotImpact <= 50 && opponentShotImpact > 0 && <p>{impact[0].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
+                {opponentShotImpact <= 120 && opponentShotImpact > 50 && <p>{impact[1].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
+                {opponentShotImpact > 120 && <p>{impact[2].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
             <div>
                 <label>Power (mph): {power.toFixed(2)}</label>
                 <input type="range" min={0} max={120} step={5} value={power} onChange={(e) => setPower(parseFloat(e.target.value))} style={{ width: '100%' }} />

@@ -53,8 +53,8 @@ export default function TennisCourt({
     const shotTargetEndLocation = transformTrajectoryTo3D(playerTrajectory[playerTrajectory.length - 1], [endPoint], shotAngle)[0];
   
     return (
-      <div style={{ position: 'relative' }}>
-        <svg width="600" height="900" viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+      <div style={{ position: 'relative', zIndex: 10 }}>
+        <svg width="500" height="750" viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
             <title>Tennis Court</title>
             <g>
                 <title>Court</title>

@@ -67,15 +67,15 @@ export default function TennisMatch() {
   }
 
   return (
-    <div style={{ width:"100%", margin: "auto", padding: '2rem', backgroundColor: '#83c702' }}>
-      <div style={{ width: "100%", display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '3em' }}>
-        <h3 style={{margin: 0}}>tennis sim v1</h3>
-        <div style={{ display: 'flex', flexDirection: 'row', gap:'2rem'}}>
-          <div>sets: <strong>{playerSets}</strong> / {opponentSets}</div>
-          <div>games: <strong>{playerGames}</strong> / {opponentGames}</div>
-          <div>points: <strong>{pointDisplay[playerPoints]}</strong> / {pointDisplay[opponentPoints]}</div>
+    <div style={{ width:"100%", margin: "auto", backgroundColor: '#83c702' }}>
+        <div style={{ width: "100%", position: 'sticky', padding:'1.5rem', zIndex: 50, backgroundColor: '#83c702', top: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '3em' }}>
+          <h3 style={{margin: 0}}>tennis sim v1</h3>
+          <div style={{ display: 'flex', flexDirection: 'row', gap:'2rem'}}>
+            <div>sets: <strong>{playerSets}</strong> / {opponentSets}</div>
+            <div>games: <strong>{playerGames}</strong> / {opponentGames}</div>
+            <div>points: <strong>{pointDisplay[playerPoints]}</strong> / {pointDisplay[opponentPoints]}</div>
+          </div>
         </div>
-      </div>
       <TennisPoint
         key={pointCount}
         onPointWinner={(winner) => updateScore(winner)}
