@@ -1,4 +1,4 @@
-import { COURT_WIDTH, COURT_LENGTH, MPH_TO_MPS, NET_POSITION_ALONG_LENGTH, SERVE_POSITION_DIFF, RETURN_POSITION_DIFF, SERVE_BOX_LENGTH } from "./constants";
+import { COURT_WIDTH, COURT_LENGTH, MPH_TO_MPS, SERVE_POSITION_DIFF, RETURN_POSITION_DIFF, SERVE_BOX_LENGTH } from "./constants";
 import {G as g, M as m, K_D as k_d, K_M as k_m, ENERGY_LOSS as energyLoss, FRICTION_LOSS as frictionLoss, NET_HEIGHT as netHeight}  from "./constants";
 
 //this is a point along a single ball trajectory
@@ -145,10 +145,11 @@ export type ShotResult = {
     }
 
     export function calculateImpact(playerLocation: Position, target: Position, power: number) {
-    const impactCoeff = 0.15; // Coefficient to adjust impact
+    const impactCoeff = 1; // Coefficient to adjust impact
 
     const dist = calculateDistance(playerLocation, target);
-    const impact = (dist + 1)**2 * power * impactCoeff ; // +1 to ensure there's always some impact
+    const impact = dist * power * impactCoeff ; // +1 to ensure there's always some impact
+    console.log({impact});
     return impact;
     }
   
@@ -339,11 +340,11 @@ export type ShotResult = {
       initialVz: vz,
       spin: shot.spin * (2 * Math.PI / 60), // Convert to rad/s
       initialHeight: ballHeight,
-      netD: getNetDistanceAlongShotPath(playerLocation, shot.shotAngle),
+      netD: getNetDistanceAlongShotPath(playerLocation, shotAngle),
     });
 
     //transform trajectory to 3D
-    const trajectory3D = transformTrajectoryTo3D(playerLocation, simShot.trajectory, shot.shotAngle);
+    const trajectory3D = transformTrajectoryTo3D(playerLocation, simShot.trajectory, shotAngle);
 
     const bouncePoint = transformTrajectoryTo3D(playerLocation, [simShot.bouncePoint], shotAngle)[0];
     const strikePoint = transformTrajectoryTo3D(playerLocation, [simShot.strikePoint], shotAngle)[0];
@@ -373,11 +374,19 @@ export type ShotResult = {
     } {
     
         //calculate chance of error
-        const strokeErrorChance = 0;//(0.3*(1 - player.consistency) * (power**2)) + (impact ?? 0);    
+    
+        const strokeErrorConstant = 0;
+        const accuracyErrorConstant = 0;
+        const strokeErrorChance = strokeErrorConstant * (1 - player.consistency) * (((power*0.01)**2) + (impact ?? 0));
         const didError = Math.random() < strokeErrorChance;
 
+        console.log({strokeErrorChance, didError});
+
         //introduce accuracy errors
-        const shotAngleWithError = shotAngle;// 5 * ((Math.random() - 0.5) * (((1 - player.accuracy) * (power**2)) + (impact ?? 0)) + shotAngle);
+        const shotAngleWithError = accuracyErrorConstant * ((Math.random() - 0.5) * (((1 - player.accuracy) * ((power*0.01)**2)) + (impact ?? 0))) + shotAngle;
+
+        console.log({shotAngle});
+        console.log({shotAngleWithError});
 
         return {
             shotAngle: shotAngleWithError,

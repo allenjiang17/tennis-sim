@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import TennisPoint from './tennisGame'; // Assuming your component is in the same directory
-import TennisBallAnimation from './tennisSideView';
 
 export default function TennisMatch() {
   const [playerPoints, setPlayerPoints] = useState(0);

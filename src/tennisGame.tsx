@@ -2,9 +2,8 @@
 import { useState, useRef, useEffect } from 'react';
 import TennisBallAnimation from './tennisSideView';
 import TennisCourt from './tennisCourt';
-import { calculateRun, calculateShot, calculateImpact, checkShotError, TrajectoryPoint2D, ShotResult, Position, getNetDistanceAlongShotPath, TrajectoryPoint3D, getInitialPlayerLocation, getInitialOpponentLocation, generateOptimalShotFromPosition, isBallInServeBox } from './utils/helper';
-import { COURT_LENGTH, SERVE_HEIGHT } from './utils/constants';
-import { generateLinearEasing } from 'framer-motion';
+import { calculateRun, calculateShot, calculateImpact, TrajectoryPoint2D, ShotResult, Position, getNetDistanceAlongShotPath, TrajectoryPoint3D, getInitialPlayerLocation, getInitialOpponentLocation, generateOptimalShotFromPosition, isBallInServeBox } from './utils/helper';
+import { SERVE_HEIGHT } from './utils/constants';
 
 const impact = [
     {
