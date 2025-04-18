@@ -68,12 +68,6 @@ export default function TennisMatch() {
 
   return (
     <div style={{ width:"100%", margin: "auto", padding: '2rem', backgroundColor: '#83c702' }}>
-      <TennisPoint
-        key={pointCount}
-        onPointWinner={(winner) => updateScore(winner)}
-        servePlayer={servePlayer}
-        serveSide={serveSide}
-      />
       <div style={{ width: "100%", display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '3em' }}>
         <h3 style={{margin: 0}}>tennis sim v1</h3>
         <div style={{ display: 'flex', flexDirection: 'row', gap:'2rem'}}>
@@ -82,6 +76,12 @@ export default function TennisMatch() {
           <div>points: <strong>{pointDisplay[playerPoints]}</strong> / {pointDisplay[opponentPoints]}</div>
         </div>
       </div>
+      <TennisPoint
+        key={pointCount}
+        onPointWinner={(winner) => updateScore(winner)}
+        servePlayer={servePlayer}
+        serveSide={serveSide}
+      />
     </div>
     
   );
