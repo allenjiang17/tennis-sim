@@ -91,7 +91,7 @@ export type ShotResult = {
         // Check for net hit
         if (
             d >= netD - vd * dt && // just before crossing net
-            d <= netD + vz * dt && // just after crossing net
+            d <= netD + vd * dt && // just after crossing net
             z <= netHeight
         ) {
             //stop rendering trajectory
@@ -427,13 +427,14 @@ export type ShotResult = {
       
         // Opponent's half: y in [-COURT_LENGTH/2, 0]
         for (let x = (-COURT_WIDTH / 2 + errorMargin); x <= (COURT_WIDTH / 2 - errorMargin); x += 0.5) {
-          for (let y = COURT_LENGTH / 3; y <= COURT_LENGTH / 2; y += 0.5) {
-            const candidate = { x, y };
-            const dist = calculateDistance(opponentLocation, candidate);
-            if (dist > maxDist) {
-              maxDist = dist;
-              bestPoint = candidate;
-            }
+          let y = COURT_LENGTH / 2 - errorMargin;
+
+          const candidate = { x, y };
+
+          const dist = calculateDistance(opponentLocation, candidate);
+          if (dist > maxDist) {
+            maxDist = dist;
+            bestPoint = candidate;
           }
         }
       

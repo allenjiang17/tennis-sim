@@ -91,7 +91,7 @@ export default function TennisCourt({
                 <circle
                     cx={toSvgX(bouncePoint.x)}
                     cy={toSvgY(bouncePoint.y)}
-                    r={3}
+                    r={2.5}
                     fill="black"
                     opacity={0.8}
                 />
@@ -101,7 +101,7 @@ export default function TennisCourt({
             <text
               x={toSvgX(ballPosition.x)}
               y={toSvgY(ballPosition.y)}
-              fontSize="6"
+              fontSize="5"
               textAnchor="middle"
               dominantBaseline="middle"
             >

@@ -25,7 +25,7 @@ const playerStats = {
     fitness: 0.8,
     consistency: 0.9,
     accuracy: 0.8,
-    speed: 6,
+    speed: 10,
 }
 
 const opponentStats = {
@@ -33,11 +33,11 @@ const opponentStats = {
     fitness: 0.8,
     consistency: 0.9,
     accuracy: 0.8,
-    speed: 6,
+    speed: 15,
     ai: {
         errorMargin: 1, //how close to the line the opponent is willing to hit
-        defaultSpin: 1500, //how much spin the opponent uses
-        defaultPower: 50, //how much power the opponent uses
+        defaultSpin: 5000, //how much spin the opponent uses
+        defaultPower: 90, //how much power the opponent uses
     }
 }
 
@@ -137,7 +137,7 @@ export default function TennisPoint(
 
         gameState.current = 'play';
 
-        //set self trajectory to nothing
+        //set self trajectory to return back to center
         if (player === 'player') {
             setPlayerTrajectory([{x: playerPosition.current.x, y: playerPosition.current.y, z: 0, t: 0}]);
         } else {
