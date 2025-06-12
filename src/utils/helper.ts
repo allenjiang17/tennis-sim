@@ -144,13 +144,13 @@ export type ShotResult = {
         return Math.sqrt(dx * dx + dy * dy);
     }
 
-    export function calculateImpact(playerLocation: Position, target: Position, power: number) {
-    const impactCoeff = 1; // Coefficient to adjust impact
+    export function calculateImpact(oppTime: number, spin: number) {
 
-    const dist = calculateDistance(playerLocation, target);
-    const impact = dist * power * impactCoeff ; // +1 to ensure there's always some impact
-    console.log({impact});
-    return impact;
+      const oppTimeReduction =  Math.exp(-oppTime * 10) + 1; //range from 1 to 2
+      const spinFactor = (spin / 5000) + 1
+
+      return oppTimeReduction * spinFactor;
+
     }
   
     export function calculateRun(
@@ -375,18 +375,15 @@ export type ShotResult = {
     
         //calculate chance of error
     
-        const strokeErrorConstant = 0;
-        const accuracyErrorConstant = 0;
-        const strokeErrorChance = strokeErrorConstant * (1 - player.consistency) * (((power*0.01)**2) + (impact ?? 0));
+        const strokeErrorConstant = 1;
+        const accuracyErrorConstant = 1;
+        const strokeErrorChance = strokeErrorConstant * (1 - player.consistency) * ((power*0.01)**2) * impact;
         const didError = Math.random() < strokeErrorChance;
 
-        console.log({strokeErrorChance, didError});
+        console.log("Stroke error chance:", strokeErrorChance, "Did error:", didError);
 
         //introduce accuracy errors
-        const shotAngleWithError = accuracyErrorConstant * ((Math.random() - 0.5) * (((1 - player.accuracy) * ((power*0.01)**2)) + (impact ?? 0))) + shotAngle;
-
-        console.log({shotAngle});
-        console.log({shotAngleWithError});
+        const shotAngleWithError = (Math.random() - 0.5) * 10 + shotAngle;
 
         return {
             shotAngle: shotAngleWithError,
@@ -420,14 +417,13 @@ export type ShotResult = {
 
 /***THIS SECTION IS FOR OPPONENT HEURISTIC AI PLAY */
     //opponent heuristic play
-    export function findTargetBouncePoint(opponentLocation: Position): Position {
+    export function findTargetBouncePoint(opponentLocation: Position, player: 'player' | 'opponent', errorMargin: number): Position {
         let bestPoint: Position = { x: 0, y: 0 };
         let maxDist = -Infinity;
-        let errorMargin = 1;
       
         // Opponent's half: y in [-COURT_LENGTH/2, 0]
         for (let x = (-COURT_WIDTH / 2 + errorMargin); x <= (COURT_WIDTH / 2 - errorMargin); x += 0.5) {
-          let y = COURT_LENGTH / 2 - errorMargin;
+          let y = player === 'player' ? -(COURT_LENGTH / 2 - (2*errorMargin)) : COURT_LENGTH / 2 - (2*errorMargin);
 
           const candidate = { x, y };
 
@@ -512,6 +508,7 @@ export type ShotResult = {
 
 
       export function generateOptimalShotFromPosition({
+        player,
         playerStats,
         playerLocation,
         opponentLocation,
@@ -519,6 +516,7 @@ export type ShotResult = {
         serve = false,
         serveSide = 'deuce'
       }: {
+        player: 'player' | 'opponent',
         playerStats: any,
         playerLocation: Position;
         opponentLocation: Position;
@@ -529,9 +527,17 @@ export type ShotResult = {
 
         let targetBounce: Position = { x: 0, y: 0 };
         if (serve) {
-          targetBounce = (serveSide === 'deuce') ? {x: COURT_WIDTH/2 - playerStats.ai.errorMargin, y: SERVE_BOX_LENGTH - playerStats.ai.errorMargin} : {x: -COURT_WIDTH/2 + playerStats.ai.errorMargin, y: SERVE_BOX_LENGTH - playerStats.ai.errorMargin}
+          console.log("Generating serve shot");
+          targetBounce = 
+            {
+              x: ((serveSide === 'deuce' && player === 'player') || (serveSide === 'ad' && player === 'opponent')) ? -(COURT_WIDTH/2 - playerStats.ai.errorMargin) : COURT_WIDTH/2 - playerStats.ai.errorMargin,
+              y: (player === 'player') ? -(SERVE_BOX_LENGTH - playerStats.ai.errorMargin) : (SERVE_BOX_LENGTH - playerStats.ai.errorMargin)
+            };
+            console.log("Target bounce for serve:", targetBounce);
         } else {
-          targetBounce = findTargetBouncePoint(opponentLocation);
+          console.log("Generating rally shot");
+          targetBounce = findTargetBouncePoint(opponentLocation, player, playerStats.ai.errorMargin);
+          console.log("Target bounce for rally:", targetBounce);
         }
 
         const defaultSpin = playerStats.ai.defaultSpin;

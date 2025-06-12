@@ -1,3 +1,5 @@
+export const ANIMATION_FRAME_LENGTH = 16; // in milliseconds
+
 export const COURT_WIDTH = 8.23; // in meters
 export const COURT_LENGTH = 23.77; // in meters
 export const SERVE_BOX_LENGTH = 6.4;//
@@ -24,7 +26,7 @@ export const INITIAL_OPPONENT_LOCATION = {
 /***PHYSICS CONSTANTS */
 export const G = 9.81;
 export const M = 0.057;
-export const K_D = 0.00003; //drag coeff
+export const K_D = 0.00001; //drag coeff
 export const K_M = 0.00006; //magnus drag coeff
 export const ENERGY_LOSS = 0.9;
 export const FRICTION_LOSS = 0.80;

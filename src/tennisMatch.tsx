@@ -67,8 +67,8 @@ export default function TennisMatch() {
   }
 
   return (
-    <div style={{ width:"100%", margin: "auto", backgroundColor: '#83c702' }}>
-        <div style={{ width: "100%", position: 'sticky', padding:'1.5rem', zIndex: 50, backgroundColor: '#83c702', top: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '3em' }}>
+    <div style={{ width:"100%", margin: "auto", backgroundColor: 'light dark' }}>
+        <div style={{ width: "100%", position: 'sticky', padding:'1.5rem', zIndex: 50, backgroundColor: '#A9A9A9', top: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '3em' }}>
           <h3 style={{margin: 0}}>tennis sim v1</h3>
           <div style={{ display: 'flex', flexDirection: 'row', gap:'2rem'}}>
             <div>sets: <strong>{playerSets}</strong> / {opponentSets}</div>

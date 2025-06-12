@@ -1,9 +1,9 @@
 // Basic 1-player tennis simulation game in React
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, use } from 'react';
 import TennisBallAnimation from './tennisSideView';
 import TennisCourt from './tennisCourt';
 import { calculateRun, calculateShot, calculateImpact, TrajectoryPoint2D, ShotResult, Position, getNetDistanceAlongShotPath, TrajectoryPoint3D, getInitialPlayerLocation, getInitialOpponentLocation, generateOptimalShotFromPosition, isBallInServeBox } from './utils/helper';
-import { SERVE_HEIGHT } from './utils/constants';
+import { ANIMATION_FRAME_LENGTH, SERVE_HEIGHT } from './utils/constants';
 
 const impact = [
     {
@@ -26,6 +26,11 @@ const playerStats = {
     consistency: 0.9,
     accuracy: 0.8,
     speed: 10,
+    ai: {
+        errorMargin: 1.5, //how close to the line the player is willing to hit
+        defaultSpin: 2000, //how much spin the player uses
+        defaultPower: 70, //how much power the player uses
+    }
 }
 
 const opponentStats = {
@@ -33,11 +38,11 @@ const opponentStats = {
     fitness: 0.8,
     consistency: 0.9,
     accuracy: 0.8,
-    speed: 15,
+    speed: 10,
     ai: {
         errorMargin: 1, //how close to the line the opponent is willing to hit
-        defaultSpin: 5000, //how much spin the opponent uses
-        defaultPower: 90, //how much power the opponent uses
+        defaultSpin: 2000, //how much spin the opponent uses
+        defaultPower: 70, //how much power the opponent uses
     }
 }
 
@@ -48,14 +53,8 @@ export default function TennisPoint(
     { onPointWinner: (winner: 'player' | 'opponent') => void, serveSide: 'ad' | 'deuce', servePlayer: 'player' | 'opponent' }
 ) {  
 
-    console.log({serveSide, servePlayer});
-
     //shot parameters
-    const [power, setPower] = useState(85); // range 0mph to 150 mph
     const [shotAngle, setAngle] = useState(0); // range -60 to 60
-    const [launchAngle, setLaunchAngle] = useState(-3); // range -10 to 60
-    const [spin, setSpin] = useState(0); // range 0 to 5000 rpm
-
     const [shotTrajectory, setShotTrajectory] = useState<TrajectoryPoint2D[]>([]);
 
     const gameState = useRef<'ready' | 'play' | 'end'>('ready');
@@ -79,10 +78,12 @@ export default function TennisPoint(
     const opponentShotImpact = useRef<number>(0);
 
     const rallyCount = useRef(0);
+    const componentMounted = useRef(false);
 
     //ball mechanics
     const [ballTrajectory, setBallTrajectory] = useState<TrajectoryPoint3D[]>([{...initPlayerLocation, z: SERVE_HEIGHT , t: 0}]);
 
+    console.log({ballTrajectory});
 
     useEffect(() => {
         opponentPosition.current = getCurrentOpponentPosition();
@@ -97,20 +98,35 @@ export default function TennisPoint(
     }, [ballTrajectory]);
 
     useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-           event.preventDefault();
+        if (componentMounted.current) {
+            autoPlay();
+        } else {
+            componentMounted.current = true;
+        }
+    }, []);
 
-          if (event.key === "ArrowRight") {
-            setAngle(prev => prev + 1);
-          } else if (event.key === "ArrowLeft") {
-            setAngle(prev => prev - 1);
+
+    async function autoPlay() {
+      
+        while (gameState.current !== 'end') {
+
+          let result;
+
+          if (gameTurn.current === 'player') {
+            result = handleTurn('player');
+            setOppResult(null);
+
+          } else {
+            result = handleTurn('opponent');
+            setPlayerResult(null);
           }
-        };
-    
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-      }, []);
-    
+
+          console.log(result.trajectoryLength, "trajectory length");
+      
+          await new Promise(res => setTimeout(res, (result.trajectoryLength * ANIMATION_FRAME_LENGTH))); // wait for the trajectory to finish
+        }
+
+    }
 
     function getCurrentPlayerPosition() {
         return {x: playerTrajectory[playerTrajectory.length - 1].x, y: playerTrajectory[playerTrajectory.length - 1].y};
@@ -133,6 +149,7 @@ export default function TennisPoint(
         shotImpact: number | null,
         shotResult: ShotResult
         opponentReached: boolean,
+        trajectoryLength: number,
     } {
 
         gameState.current = 'play';
@@ -144,41 +161,27 @@ export default function TennisPoint(
             setOpponentTrajectory([{x: opponentPosition.current.x, y: opponentPosition.current.y, z: 0, t: 0}]);
         }
 
-        if (player === 'player') {
-            //defaults
-            setPower(45);
-            setLaunchAngle(15);
-            setSpin(500);
-        }
-
         let playerShotPower;
         let playerShotAngle;
         let playerShotSpin;
         let playerShotLaunchAngle;
 
         //get stroke data
-        if (player === 'player') {
-            playerShotPower = power;
-            playerShotAngle = shotAngle;
-            playerShotSpin = spin;
-            playerShotLaunchAngle = launchAngle;
+        const shotParams = generateOptimalShotFromPosition({
+            player: player,
+            playerStats: player === 'player' ? playerStats : opponentStats,
+            playerLocation: player === 'player' ? playerPosition.current : opponentPosition.current,
+            opponentLocation: player === 'player' ? opponentPosition.current : playerPosition.current,
+            initialHeight: ballPosition.current.z,
+            serve: rallyCount.current === 0,
+            serveSide: serveSide
+        })
 
-        } else {
-
-            const opponentShotParams = generateOptimalShotFromPosition({
-                playerStats: opponentStats,
-                playerLocation: opponentPosition.current,
-                opponentLocation: playerPosition.current,
-                initialHeight: ballPosition.current.z,
-                serve: rallyCount.current === 0 && servePlayer === 'opponent',
-                serveSide: serveSide
-            })
-                    //randomly generate opponent's stroke
-            playerShotPower = opponentShotParams.power
-            playerShotAngle = opponentShotParams.shotAngle;
-            playerShotSpin = opponentShotParams.spin;
-            playerShotLaunchAngle = opponentShotParams.launchAngle;
-        }
+                //randomly generate opponent's stroke
+        playerShotPower = shotParams.power
+        playerShotAngle = shotParams.shotAngle;
+        playerShotSpin = shotParams.spin;
+        playerShotLaunchAngle = shotParams.launchAngle;
 
         const shotResult = calculateShot({
             player: player === 'player' ? playerStats : opponentStats,
@@ -209,12 +212,14 @@ export default function TennisPoint(
                 shotImpact: 0 ,
                 shotResult,
                 opponentReached: true,
+                trajectoryLength: shotResult.trajectory3D.length,
             };
         }
 
         //set ball trajectories
         setBallTrajectory(shotResult.trajectory3D);
         setShotTrajectory(shotResult.trajectory2D);
+
 
         //calculate misses
         if (rallyCount.current === 0) {
@@ -240,6 +245,7 @@ export default function TennisPoint(
                     shotImpact: 0,
                     shotResult,
                     opponentReached: false,
+                    trajectoryLength: shotResult.trajectory3D.length,
                 };
             }
 
@@ -264,16 +270,8 @@ export default function TennisPoint(
                 shotImpact: 0 ,
                 shotResult,
                 opponentReached: true,
+                trajectoryLength: shotResult.trajectory3D.length,
             };
-        }
-
-        //calculate shot impact
-        const shotImpact = calculateImpact(player === 'player' ? opponentPosition.current : playerPosition.current, shotResult.strikePoint, playerShotPower);
-        
-        if (player === 'player') {
-            playerShotImpact.current = shotImpact;
-        } else {
-            opponentShotImpact.current = shotImpact;
         }
 
         //see if opponent makes it in time
@@ -282,6 +280,15 @@ export default function TennisPoint(
             setOpponentTrajectory(oppRunResult.trajectory);
         } else {
             setPlayerTrajectory(oppRunResult.trajectory);
+        }
+
+        //calculate shot impact
+        const shotImpact = calculateImpact(oppRunResult.timeToBall - oppRunResult.timeNeeded, playerShotSpin);
+
+        if (player === 'player') {
+            playerShotImpact.current = shotImpact;
+        } else {
+            opponentShotImpact.current = shotImpact;
         }
 
         if (!oppRunResult.reached) {
@@ -303,6 +310,7 @@ export default function TennisPoint(
                 shotImpact,
                 shotResult,
                 opponentReached: false,
+                trajectoryLength: shotResult.trajectory3D.length,
             }
         }
 
@@ -333,20 +341,9 @@ export default function TennisPoint(
             shotImpact,
             shotResult,
             opponentReached: true,
+            trajectoryLength: shotResult.trajectory3D.slice(0, (shotResult.strikePoint.t*100)).length,
         };
     }  
-    
-    function handlePlayerTurn() {
-
-        setPlayerResult(null);
-        setOppResult(null);
-        
-        handleTurn("player"); 
-        if (gameState.current !== 'end'){
-            setTimeout(()=>{handleTurn("opponent")}, opponentDelay)
-        };
-        
-    }
 
     return (
         <div style={{width: "100%", display: "flex", flexDirection: "row", gap: "5rem"}}>
@@ -372,20 +369,6 @@ export default function TennisPoint(
                     </div>
                 )}
                 {gameState.current === "end" && gameWinner.current !== null && <button onClick={()=>{onPointWinner(gameWinner.current!)}} style={{ marginTop: '1rem' }}>Next Point</button>}
-                {gameTurn.current === 'player' && gameState.current !== 'end' &&
-                    <StrokeControl
-                        power={power}
-                        setPower={setPower}
-                        spin={spin}
-                        setSpin={setSpin}
-                        launchAngle={launchAngle}
-                        setLaunchAngle={setLaunchAngle}
-                        shotAngle={shotAngle}
-                        setAngle={setAngle}
-                        opponentShotImpact={opponentShotImpact.current}
-                        handlePlay={handlePlayerTurn}
-                    />
-                }
                 {servePlayer === 'opponent' && gameTurn.current === 'opponent' && gameState.current === 'ready' && <button onClick={()=>{handleTurn("opponent")}} style={{ marginTop: '1rem' }}>Ready to return</button>}
                 </div>
         </div>
@@ -393,52 +376,3 @@ export default function TennisPoint(
 }
 
 
-function StrokeControl({
-    power,
-    setPower,
-    spin,
-    setSpin,
-    launchAngle,
-    setLaunchAngle,
-    shotAngle,
-    setAngle,
-    opponentShotImpact,
-    handlePlay,
-}: {
-    power: number;
-    setPower: (value: number) => void;
-    spin: number;
-    setSpin: (value: number) => void;
-    launchAngle: number;
-    setLaunchAngle: (value: number) => void;
-    shotAngle: number;
-    setAngle: (value: number) => void;
-    opponentShotImpact: number;
-    handlePlay: () => void;
-}) {               
-
-    return (
-        <div style={{ marginTop: '1rem', padding: '1rem', border: '2px solid #ccc', borderRadius: '8px' }}>
-                {opponentShotImpact <= 50 && opponentShotImpact > 0 && <p>{impact[0].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
-                {opponentShotImpact <= 120 && opponentShotImpact > 50 && <p>{impact[1].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
-                {opponentShotImpact > 120 && <p>{impact[2].description} (Impact: {opponentShotImpact.toFixed(2)})</p>}
-            <div>
-                <label>Power (mph): {power.toFixed(2)}</label>
-                <input type="range" min={0} max={120} step={5} value={power} onChange={(e) => setPower(parseFloat(e.target.value))} style={{ width: '100%' }} />
-            </div>
-            <div>
-                <label>Launch angle (degrees): {launchAngle.toFixed(2)}</label>
-                <input type="range" min={-10} max={60} step={1} value={launchAngle} onChange={(e) => setLaunchAngle(parseFloat(e.target.value))} style={{ width: '100%' }} />
-            </div>
-            <div>
-                <label>Spin (rpm) {spin.toFixed(2)}</label>
-                <input type="range" min={-2000} max={5000} step={100} value={spin} onChange={(e) => setSpin(parseFloat(e.target.value))} style={{ width: '100%' }} />
-            </div>
-            <div>
-                <label>Angle (degrees): {shotAngle.toFixed(2)}</label>
-                <input type="range" min={-60} max={60} step={1} value={shotAngle} onChange={(e) => setAngle(parseFloat(e.target.value))} style={{ width: '100%' }} />
-            </div>
-            <button onClick={handlePlay} style={{ marginTop: '1rem' }}>Hit Shot</button>
-        </div>
-    )
-}

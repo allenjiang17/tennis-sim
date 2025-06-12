@@ -1,5 +1,7 @@
 import { TrajectoryPoint2D, TrajectoryPoint3D, transformTrajectoryTo3D } from "./utils/helper";
 import { useEffect, useState } from "react";
+import SwingingTennisPlayer from "./components/playerSprite";
+import { ANIMATION_FRAME_LENGTH } from "./utils/constants";
 
 export type TennisCourtProps = {
   playerTrajectory: TrajectoryPoint3D[];
@@ -32,7 +34,7 @@ export default function TennisCourt({
       
         const interval = setInterval(() => {
           setFrame((prev) => Math.min(prev + 1, ballTrajectory.length - 1));
-        }, 16);
+        }, ANIMATION_FRAME_LENGTH);
       
         return () => clearInterval(interval);
       }, [ ballTrajectory]);
@@ -45,8 +47,11 @@ export default function TennisCourt({
     const playerLocation = playerTrajectory[frame] || playerTrajectory[playerTrajectory.length - 1];
     const opponentLocation = opponentTrajectory[frame] || opponentTrajectory[opponentTrajectory.length - 1];
 
-    const showLines =
+    const playerShotAnimation =
     Math.hypot(ballPosition.x - playerLocation.x, ballPosition.y - playerLocation.y) <= 0.3;
+
+    const opponentShotAnimation =
+    Math.hypot(ballPosition.x - opponentLocation.x, ballPosition.y - opponentLocation.y) <= 0.3;
 
     const endPoint = {d: 1000, z: 0, t: 0} as TrajectoryPoint2D;
     const zeroTargetEndLocation = transformTrajectoryTo3D(playerTrajectory[playerTrajectory.length - 1], [endPoint], 0)[0];
@@ -65,28 +70,6 @@ export default function TennisCourt({
                 <line id="svg_6" stroke="#FFFFFF" stroke-width="1" x1="58.54" x2="141.5" y1="214" y2="214"/>
                 <line id="svg_7" stroke="#FFFFFF" stroke-width="1" x1="100" x2="100" y1="86" y2="214"/>
             </g>
-  
-            {/* Zero-angle line (yellow) */}
-            {showLines && <line
-              x1={toSvgX(playerLocation.x)}
-              y1={toSvgY(playerLocation.y)}
-              x2={toSvgX(zeroTargetEndLocation.x)}
-              y2={toSvgY(zeroTargetEndLocation.y)}
-              stroke="pink"
-              strokeWidth="0.8"
-            />
-          }
-  
-            {/* Shot angle line (red) */}
-            {showLines && <line
-              x1={toSvgX(playerLocation.x)}
-              y1={toSvgY(playerLocation.y)}
-              x2={toSvgX(shotTargetEndLocation.x)}
-              y2={toSvgY(shotTargetEndLocation.y)}
-              stroke="red"
-              strokeWidth="0.8"
-            />
-            }
             {bouncePoint && frame >= bounceIndex && (
                 <circle
                     cx={toSvgX(bouncePoint.x)}
@@ -109,26 +92,24 @@ export default function TennisCourt({
             </text>
   
             {/* Player */}
-            <text
-              x={toSvgX(playerLocation.x)}
-              y={toSvgY(playerLocation.y)}
-              fontSize="10"
-              textAnchor="middle"
-              dominantBaseline="middle"
+            <foreignObject
+              x={toSvgX(playerLocation.x) - 15 - (playerLocation.x > 0 ? 3.5 : -3.5)} // offset to center
+              y={toSvgY(playerLocation.y) - 15}
+              width={30}
+              height={30}
             >
-              🧍
-            </text>
+              <SwingingTennisPlayer player="player" swing={playerShotAnimation} swingType={playerLocation.x > 0 ? "forehand" : "backhand"} />
+            </foreignObject>
   
             {/* Opponent */}
-            <text
-              x={toSvgX(opponentLocation.x)}
-              y={toSvgY(opponentLocation.y)}
-              fontSize="10"
-              textAnchor="middle"
-              dominantBaseline="middle"
+            <foreignObject
+              x={toSvgX(opponentLocation.x) - 15 - (opponentLocation.x > 0 ? 3.5 : -3.5)} // offset to center
+              y={toSvgY(opponentLocation.y) - 15}
+              width={30}
+              height={30}
             >
-              🤖
-            </text>
+              <SwingingTennisPlayer player="opponent" swing={opponentShotAnimation} swingType={opponentLocation.x > 0 ? "backhand" : "forehand"} />
+            </foreignObject>
         </svg>
       </div>
     );

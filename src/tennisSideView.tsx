@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { TrajectoryPoint2D } from './utils/helper';
+import { ANIMATION_FRAME_LENGTH } from './utils/constants';
 
 
 export default function TennisBallAnimation({trajectory, netX}: {trajectory: TrajectoryPoint2D[], netX: number}) {
@@ -13,7 +14,7 @@ export default function TennisBallAnimation({trajectory, netX}: {trajectory: Tra
   
     const interval = setInterval(() => {
       setFrame((prev) => Math.min(prev + 1, trajectory.length - 1));
-    }, 16);
+    }, ANIMATION_FRAME_LENGTH);
   
     return () => clearInterval(interval);
   }, [trajectory]);
